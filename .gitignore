@@ -1,0 +1,21 @@
+# Scala-related stuff
+
+/generator/.idea/workspace.xml
+/generator/.idea/tasks.xml
+/generator/.idea/dictionaries
+/generator/.idea/shelf
+/generator/.idea/libraries
+/generator/.idea/modules
+/generator/.idea/modules.xml
+/generator/.idea/hydra.xml
+/generator/.idea/uiDesigner.xml
+/generator/.idea/vcs.xml
+
+/generator/project/target
+/generator/target
+
+# C-related stuff
+*.o
+/runtime/generated/
+CMakeLists.txt.user
+/generated-docs

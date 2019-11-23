@@ -1,0 +1,525 @@
+# Taken with modifications from the Syzkaller project
+
+include <string.h>
+include <stdio.h>
+include <sys/types.h>
+include <sys/stat.h>
+include <fcntl.h>
+include <sys/file.h>
+include <dirent.h>
+include <sys/ioctl.h>
+include <linux/fs.h>
+include <asm/unistd.h>
+include <sys/sendfile.h>
+
+include <mqueue.h>
+include <sys/fanotify.h>
+include <sys/eventfd.h>
+include <sys/inotify.h>
+include <sys/epoll.h>
+include <poll.h>
+
+iovec {
+    iov_base ptr[in, buffer]
+    iov_len len[iov_base, intptr]
+}
+
+#open(file ptr[in, filename], flags flags[open_flags], mode flags[open_mode]) fd
+# Just so that we have something that creates fd_dir resources.
+#open$dir(file ptr[in, filename], flags flags[open_flags], mode flags[open_mode]) fd_dir
+openat$dir(fd const[AT_FDCWD], file ptr[in, filename], flags flags[open_flags], mode flags[open_mode]) fd_dir
+openat(fd fd_dir[opt], file ptr[in, filename], flags flags[open_flags], mode flags[open_mode]) fd
+#creat(file ptr[in, filename], mode flags[open_mode]) fd
+close(fd fd) @valid_errno_or_non_negative
+read(fd fd, buf buffer[out], count len[buf]) @valid_errno_or_non_negative
+pread64(fd fd, buf buffer[out], count len[buf], pos fileoff) @valid_errno_or_non_negative
+readv(fd fd, vec ptr[in, array[iovec]], vlen len[vec]) @valid_errno_or_non_negative
+#preadv(fd fd, vec ptr[in, array[iovec]], vlen len[vec], off fileoff) @valid_errno_or_non_negative
+write(fd fd, buf buffer[in], count len[buf]) @valid_errno_or_non_negative
+pwrite64(fd fd, buf buffer[in], count len[buf], pos fileoff) @valid_errno_or_non_negative
+writev(fd fd, vec ptr[in, array[iovec]], vlen len[vec]) @valid_errno_or_non_negative
+#pwritev(fd fd, vec ptr[in, array[iovec]], vlen len[vec], off fileoff) @valid_errno_or_non_negative
+lseek(fd fd, offset fileoff, whence flags[seek_whence]) const[0, int32]
+
+dup(oldfd fd) fd
+#dup2(oldfd fd, newfd fd) fd
+dup3(oldfd fd, newfd fd, flags flags[dup_flags]) fd
+
+#pipe(pipefd ptr[out, pipefd]) @valid_errno_or_non_negative
+pipe2(pipefd ptr[out, pipefd], flags flags[pipe_flags]) @valid_errno_or_non_negative
+
+tee(fdin fd, fdout fd, len intptr, f flags[splice_flags]) @valid_errno_or_non_negative
+splice(fdin fd, offin ptr[in, fileoff[int64]], fdout fd, offout ptr[in, fileoff[int64]], len intptr, f flags[splice_flags]) @valid_errno_or_non_negative
+vmsplice(fd fd, vec ptr[in, array[iovec]], vlen len[vec], f flags[splice_flags]) @valid_errno_or_non_negative
+sendfile(fdout fd, fdin fd, off ptr[inout, fileoff[intptr], opt], count intptr) @valid_errno_or_non_negative
+##sendfile64(fdout fd, fdin fd, off ptr[inout, fileoff[int64], opt], count intptr) @valid_errno_or_non_negative
+
+#stat(file ptr[in, filename], statbuf ptr[out, stat])
+#statx(fd fd_dir, file ptr[in, filename], flags flags[statx_flags], mask flags[statx_mask], statxbuf ptr[out, statx])
+#lstat(file ptr[in, filename], statbuf ptr[out, stat])
+#fstat(fd fd, statbuf ptr[out, stat])
+
+#poll(ffds ptr[in, pollfd], nfds const[1, int32], timeout int32) @valid_errno_or_non_negative
+#ppoll(ffds ptr[in, array[pollfd]], nfds len[ffds], tsp ptr[in, timespec], sigmask ptr[in, sigset], size len[sigmask])
+#select(n len[inp], inp ptr[inout, ffd_set], outp ptr[inout, ffd_set], exp ptr[inout, ffd_set], tvp ptr[inout, timeval])
+
+#epoll_create(size int32) fd
+epoll_create1(flags flags[epoll_flags]) fd
+epoll_ctl$EPOLL_CTL_DEL(epfd fd, op const[EPOLL_CTL_DEL], fd fd, x const[0]) @valid_errno_or_non_negative
+
+#timerfd_create(clockid flags[clock_type], flags flags[timerfd_create_flags]) fd
+#timerfd_settime(fd fd, flags flags[timerfd_settime_flags], new ptr[in, itimerspec], old ptr[out, itimerspec]) @valid_errno_or_non_negative
+#timerfd_gettime(fd fd, cur ptr[out, itimerspec]) @valid_errno_or_non_negative
+
+#eventfd(initval int32) fd
+eventfd2(initval int32, flags flags[eventfd_flags]) fd
+read$eventfd(fd fd, val ptr[out, int64], len sizeof[val]) @valid_errno_or_non_negative
+write$eventfd(fd fd, val ptr[in, int64], len sizeof[val]) @valid_errno_or_non_negative
+
+
+ioctl$void(fd fd, cmd flags[ioctl_void], x const[0]) @valid_errno_or_non_negative
+#ioctl(fd fd, cmd intptr, arg buffer[in]) @valid_errno_or_non_negative
+
+ioctl$void(fd fd, cmd flags[ioctl_void], x const[0]) @valid_errno_or_non_negative
+ioctl$int_in(fd fd, cmd flags[ioctl_int_in], v ptr[in, int64]) @valid_errno_or_non_negative
+ioctl$int_out(fd fd, cmd flags[ioctl_int_out], v ptr[out, intptr]) @valid_errno_or_non_negative
+
+fcntl$dupfd(fd fd, cmd flags[fcntl_dupfd], arg fd) fd
+fcntl$getflags(fd fd, cmd flags[fcntl_getflags], x const[0]) @valid_errno_or_non_negative
+fcntl$setflags(fd fd, cmd const[F_SETFD], flags flags[fcntl_flags]) @valid_errno_or_non_negative
+fcntl$setstatus(fd fd, cmd const[F_SETFL], flags flags[fcntl_status]) @valid_errno_or_non_negative
+#fcntl$lock(fd fd, cmd flags[fcntl_lock], lock ptr[in, flock])
+fcntl$getown(fd fd, cmd const[F_GETOWN], x const[0]) pid @valid_errno_or_non_negative
+fcntl$setown(fd fd, cmd const[F_SETOWN], pid pid) @valid_errno_or_non_negative
+fcntl$getownex(fd fd, cmd const[F_GETOWN_EX], arg ptr[out, f_owner_ex]) @valid_errno_or_non_negative
+fcntl$setownex(fd fd, cmd const[F_SETOWN_EX], arg ptr[in, f_owner_ex]) @valid_errno_or_non_negative
+fcntl$setsig(fd fd, cmd const[F_SETSIG], sig signalno) @valid_errno_or_non_negative
+fcntl$setlease(fd fd, cmd const[F_SETLEASE], typ flags[flock_type]) @valid_errno_or_non_negative
+fcntl$notify(fd fd, cmd const[F_NOTIFY], typ flags[fcntl_notify]) @valid_errno_or_non_negative
+fcntl$setpipe(fd fd, cmd const[F_SETPIPE_SZ], sz intptr) @valid_errno_or_non_negative
+fcntl$addseals(fd fd, cmd const[F_ADD_SEALS], seals flags[seal_types]) @valid_errno_or_non_negative
+fcntl$F_GET_RW_HINT(fd fd, cmd const[F_GET_RW_HINT], hint ptr[out, int64]) @valid_errno_or_non_negative
+fcntl$F_GET_FILE_RW_HINT(fd fd, cmd const[F_GET_FILE_RW_HINT], hint ptr[out, int64]) @valid_errno_or_non_negative
+fcntl$F_SET_RW_HINT(fd fd, cmd const[F_SET_RW_HINT], hint ptr[in, flags[fcntl_rw_hint, int64]]) @valid_errno_or_non_negative
+fcntl$F_SET_FILE_RW_HINT(fd fd, cmd const[F_SET_FILE_RW_HINT], hint ptr[in, flags[fcntl_rw_hint, int64]]) @valid_errno_or_non_negative
+
+capget(hdr ptr[in, cap_header], data ptr[in, cap_data]) @valid_errno_or_non_negative
+capset(hdr ptr[in, cap_header], data ptr[in, cap_data]) @valid_errno_or_non_negative
+
+# compare...
+#mq_open(name ptr[in, string], flags flags[mq_open_flags], mode flags[open_mode], attr ptr[in, mq_attr]) fd
+#mq_timedsend(mqd fd, msg buffer[in], msglen len[msg], prio ptr[inout, int32], timeout ptr[in, timespec, opt]) @valid_errno_or_non_negative
+#mq_timedreceive(mqd fd, msg buffer[out], msglen len[msg], prio ptr[inout, int32], timeout ptr[in, timespec, opt]) @valid_errno_or_non_negative
+#mq_notify(mqd fd, notif ptr[in, sigevent]) @valid_errno_or_non_negative
+#mq_getsetattr(mqd fd, attr ptr[in, mq_attr], oldattr ptr[out, mq_attr, opt]) @valid_errno_or_non_negative
+#mq_unlink(name ptr[in, string]) @valid_errno_or_non_negative
+
+#chmod(file ptr[in, filename], mode flags[open_mode]) @valid_errno_or_non_negative
+fchmod(fd fd, mode flags[open_mode]) @valid_errno_or_non_negative
+fchmodat(dirfd fd_dir, file ptr[in, filename], mode flags[open_mode]) @valid_errno_or_non_negative
+#chown(file ptr[in, filename], uid uid, gid gid) @valid_errno_or_non_negative
+#lchown(file ptr[in, filename], uid uid, gid gid) @valid_errno_or_non_negative
+fchown(fd fd, uid uid, gid gid) @valid_errno_or_non_negative
+fchownat(dirfd fd_dir, file ptr[in, filename], uid uid, gid gid, flags flags[at_flags]) @valid_errno_or_non_negative
+fallocate(fd fd, mode flags[fallocate_mode], off intptr, len intptr) @valid_errno_or_non_negative
+#faccessat(dirfd fd_dir, pathname ptr[in, filename], mode flags[open_mode], flags flags[faccessat_flags]) @valid_errno_or_non_negative
+#utime(filename ptr[in, filename], times ptr[in, utimbuf]) @valid_errno_or_non_negative
+#utimes(filename ptr[in, filename], times ptr[in, itimerval]) @valid_errno_or_non_negative
+#futimesat(dir fd_dir, pathname ptr[in, filename], times ptr[in, itimerval]) @valid_errno_or_non_negative
+#utimensat(dir fd_dir, pathname ptr[in, filename], times ptr[in, itimerval], flags flags[utimensat_flags]) @valid_errno_or_non_negative
+
+#inotify_init() fd
+inotify_init1(flags flags[inotify_flags]) fd
+inotify_add_watch(fd fd, file ptr[in, filename], mask flags[inotify_mask]) fd
+inotify_rm_watch(fd fd, wd fd) @valid_errno_or_non_negative
+fanotify_init(flags flags[fanotify_flags], events flags[fanotify_events]) fd
+fanotify_mark(fd fd, flags flags[fanotify_mark], mask flags[fanotify_mask], fddir fd_dir, path ptr[in, filename]) @valid_errno_or_non_negative
+#ioctl$INOTIFY_IOC_SETNEXTWD(fd fd, cmd const[INOTIFY_IOC_SETNEXTWD], arg intptr) @valid_errno_or_non_negative
+
+#link(old ptr[in, filename], new ptr[in, filename]) @valid_errno_or_non_negative
+linkat(oldfd fd_dir, old ptr[in, filename], newfd fd_dir, new ptr[in, filename], flags flags[linkat_flags]) @valid_errno_or_non_negative
+symlinkat(old ptr[in, filename], newfd fd_dir, new ptr[in, filename]) @valid_errno_or_non_negative
+#symlink(old ptr[in, filename], new ptr[in, filename]) @valid_errno_or_non_negative
+#unlink(path ptr[in, filename]) @valid_errno_or_non_negative
+unlinkat(fd fd_dir, path ptr[in, filename], flags flags[unlinkat_flags]) @valid_errno_or_non_negative
+#readlink(path ptr[in, filename], buf buffer[out], siz len[buf]) @valid_errno_or_non_negative
+readlinkat(fd fd_dir, path ptr[in, filename], buf buffer[out], siz len[buf]) @valid_errno_or_non_negative
+#rename(old ptr[in, filename], new ptr[in, filename]) @valid_errno_or_non_negative
+renameat(oldfd fd_dir, old ptr[in, filename], newfd fd_dir, new ptr[in, filename]) @valid_errno_or_non_negative
+renameat2(oldfd fd_dir, old ptr[in, filename], newfd fd_dir, new ptr[in, filename], flags flags[renameat2_flags]) @valid_errno_or_non_negative
+#mkdir(path ptr[in, filename], mode flags[open_mode]) @valid_errno_or_non_negative
+mkdirat(fd fd_dir, path ptr[in, filename], mode flags[open_mode]) @valid_errno_or_non_negative
+#rmdir(path ptr[in, filename]) @valid_errno_or_non_negative
+truncate(file ptr[in, filename], len intptr) @valid_errno_or_non_negative
+ftruncate(fd fd, len intptr) @valid_errno_or_non_negative
+flock(fd fd, op flags[flock_op]) @valid_errno_or_non_negative
+fsync(fd fd) @valid_errno_or_non_negative
+fdatasync(fd fd) @valid_errno_or_non_negative
+sync() @valid_errno_or_non_negative
+syncfs(fd fd) @valid_errno_or_non_negative
+sync_file_range(fd fd, off intptr, nbytes intptr, flags flags[sync_file_flags]) @valid_errno_or_non_negative
+##lookup_dcookie(cookie int64, buf buffer[out], len len[buf])
+##getdents(fd fd_dir, ent buffer[out], count len[ent]) @valid_errno_or_non_negative
+##getdents64(fd fd_dir, ent buffer[out], count len[ent]) @valid_errno_or_non_negative
+#name_to_handle_at(fd fd_dir, file ptr[in, filename], handle ptr[in, file_handle], mnt ptr[out, int32], flags flags[name_to_handle_at_flags])
+#open_by_handle_at(mountdirfd fd, handle ptr[in, file_handle], flags flags[open_flags])
+#chroot(dir ptr[in, filename])
+#getcwd(buf buffer[out], size len[buf])
+#chdir(dir ptr[in, filename])
+#fchdir(fd fd)
+quotactl(cmd intptr, special ptr[in, filename], id uid, addr ptr[in, array[int8]]) @valid_errno_or_non_negative
+
+pollfd {
+	fd	fd
+	events	flags[pollfd_events, int16]
+	revents	const[0, int16]
+}
+
+timespec {
+	sec	int64
+	nsec	int64
+}
+
+timeval {
+	sec	int64
+	usec	int64
+}
+
+statx_timestamp {
+	sec		int64
+	nsec		int32
+	__reserved	int32
+}
+
+itimerspec {
+	interv	timespec
+	value	timespec
+}
+
+itimerval {
+	interv	timeval
+	value	timeval
+}
+
+utimbuf {
+	actime	intptr
+	modtime	intptr
+}
+
+stat {
+	dev	int16
+	ino	int32
+	mode	int16
+	nlink	int16
+	uid	uid
+	gid	gid
+	rdev	int16
+	size	int32
+	blksize	int32
+	blocks	int32
+	atime	int32
+	ansec	int32
+	mtime	int32
+	mnsec	int32
+	ctime	int32
+	cnsec	int32
+	pad1	const[0, int32]
+	pad2	const[0, int32]
+}
+
+cap_header {
+	var	flags[cap_version, int32]
+	pid	pid
+}
+
+cap_data {
+	eff0	int32
+	perm0	int32
+	inher0	int32
+	eff1	int32
+	perm1	int32
+	inher1	int32
+}
+
+mq_attr {
+	flags	intptr
+	maxmsg	intptr
+	msgsize	intptr
+	curmsg	intptr
+	res0	intptr
+	res1	intptr
+	res2	intptr
+	res3	intptr
+}
+
+flock {
+	type	flags[flock_type, int16]
+	whence	flags[seek_whence, int16]
+	start	intptr
+	len	intptr
+	pid	pid
+}
+
+f_owner_ex {
+	type	flags[f_owner_type, int32]
+	pid	pid
+}
+
+ucred {
+	pid	pid
+	uid	uid
+	gid	gid
+}
+
+ffd_set {
+ 	mask0	int64
+ 	mask1	int64
+ 	mask2	int64
+ 	mask3	int64
+ 	mask4	int64
+ 	mask5	int64
+ 	mask6	int64
+ 	mask7	int64
+ }
+
+sigset {
+	mask	int64
+}
+statx {
+	mask		int32
+	blksize		int32
+	attributes	int64
+	nlink		int32
+	uid		int32
+	gid		int32
+	mode		int16
+	__spare0	int16
+	ino		int64
+	size		int64
+	blocks		int64
+	__spare1	int64
+	atime		statx_timestamp
+	btime		statx_timestamp
+	ctime		statx_timestamp
+	mtime		statx_timestamp
+	rdev_major	int32
+	rdev_minor	int32
+	dev_major	int32
+	dev_minor	int32
+	__spare2	array[int64, 14]
+}
+pipefd {
+	rfd	fd
+	wfd	fd
+}
+ioctl_void = FIOCLEX, FIONCLEX, FITHAW
+ioctl_int_in = FIONBIO, FIOASYNC
+ioctl_int_out = FIOQSIZE, FIGETBSZ
+fcntl_getflags = F_GETFD, F_GETFL, F_GETSIG, F_GETLEASE, F_GETPIPE_SZ, F_GET_SEALS
+fcntl_lock = F_SETLK, F_SETLKW, F_GETLK, F_OFD_GETLK, F_OFD_SETLK, F_OFD_SETLKW
+fcntl_flags = FD_CLOEXEC
+fcntl_status = O_APPEND, FASYNC, O_DIRECT, O_NOATIME, O_NONBLOCK
+flock_type = F_RDLCK, F_WRLCK, F_UNLCK
+fcntl_notify = DN_MULTISHOT, DN_ACCESS, DN_MODIFY, DN_CREATE, DN_DELETE, DN_RENAME, DN_ATTRIB
+seal_types = F_SEAL_SEAL, F_SEAL_SHRINK, F_SEAL_GROW, F_SEAL_WRITE
+fcntl_rw_hint = RWF_WRITE_LIFE_NOT_SET, RWH_WRITE_LIFE_NONE, RWH_WRITE_LIFE_SHORT, RWH_WRITE_LIFE_MEDIUM, RWH_WRITE_LIFE_LONG, RWH_WRITE_LIFE_EXTREME
+
+
+mq_open_flags = O_RDONLY, O_WRONLY, O_RDWR, O_NONBLOCK, O_CREAT, O_EXCL, O_CREAT
+fanotify_flags = FAN_CLASS_PRE_CONTENT, FAN_CLASS_CONTENT, FAN_CLASS_NOTIF, FAN_CLOEXEC, FAN_NONBLOCK, FAN_UNLIMITED_QUEUE, FAN_UNLIMITED_MARKS, FAN_ENABLE_AUDIT
+fanotify_events = O_RDONLY, O_WRONLY, O_RDWR, O_LARGEFILE, O_CLOEXEC, O_APPEND, O_DSYNC, O_NOATIME, O_NONBLOCK, O_SYNC
+fanotify_mark = FAN_MARK_ADD, FAN_MARK_REMOVE, FAN_MARK_FLUSH, FAN_MARK_DONT_FOLLOW, FAN_MARK_ONLYDIR, FAN_MARK_MOUNT, FAN_MARK_IGNORED_MASK, FAN_MARK_IGNORED_SURV_MODIFY
+fanotify_mask = FAN_ACCESS, FAN_MODIFY, FAN_CLOSE_WRITE, FAN_CLOSE_NOWRITE, FAN_OPEN, FAN_ONDIR, FAN_EVENT_ON_CHILD
+
+inotify_flags = IN_NONBLOCK, IN_CLOEXEC
+inotify_mask = IN_ACCESS, IN_ATTRIB, IN_CLOSE_WRITE, IN_CLOSE_NOWRITE, IN_CREATE, IN_DELETE, IN_DELETE_SELF, IN_MODIFY, IN_MOVE_SELF, IN_MOVED_FROM, IN_MOVED_TO, IN_OPEN, IN_DONT_FOLLOW, IN_EXCL_UNLINK, IN_MASK_ADD, IN_ONESHOT, IN_ONLYDIR, IN_ISDIR
+
+eventfd_flags = EFD_CLOEXEC, EFD_NONBLOCK, EFD_SEMAPHORE
+fcntl_dupfd = F_DUPFD, F_DUPFD_CLOEXEC
+epoll_flags = EPOLL_CLOEXEC
+epoll_ev = POLLIN, POLLOUT, POLLRDHUP, POLLPRI, POLLERR, POLLHUP, EPOLLET, EPOLLONESHOT, EPOLLEXCLUSIVE, EPOLLWAKEUP
+pollfd_events = POLLIN, POLLPRI, POLLOUT, POLLERR, POLLHUP, POLLNVAL, POLLRDNORM, POLLRDBAND, POLLWRNORM, POLLWRBAND, POLLMSG, POLLREMOVE, POLLRDHUP
+#, POLLFREE, POLL_BUSY_LOOP
+
+
+
+
+
+
+open_flags = O_RDONLY, O_WRONLY, O_RDWR, O_APPEND, FASYNC, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_LARGEFILE, O_NOATIME, O_NOCTTY, O_NOFOLLOW, O_NONBLOCK, O_PATH, O_SYNC, O_TRUNC, __O_TMPFILE
+open_mode = S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IWGRP, S_IXGRP, S_IROTH, S_IWOTH, S_IXOTH
+fadvise_flags = POSIX_FADV_NORMAL, POSIX_FADV_SEQUENTIAL, POSIX_FADV_RANDOM, POSIX_FADV_NOREUSE, POSIX_FADV_WILLNEED, POSIX_FADV_DONTNEED
+pipe_flags = O_NONBLOCK, O_CLOEXEC, O_DIRECT
+dup_flags = O_CLOEXEC
+splice_flags = SPLICE_F_MOVE, SPLICE_F_NONBLOCK, SPLICE_F_MORE, SPLICE_F_GIFT
+seek_whence = SEEK_SET, SEEK_CUR, SEEK_END
+cap_version = 0x19980330, 0x20071026, 0x20080522
+#mknod_mode = S_IFREG, S_IFIFO, S_IFSOCK, S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IWGRP, S_IXGRP, S_IROTH, S_IWOTH, S_IXOTH
+at_flags = AT_EMPTY_PATH, AT_SYMLINK_NOFOLLOW, AT_SYMLINK_FOLLOW, AT_NO_AUTOMOUNT, AT_EMPTY_PATH
+fallocate_mode = 0, FALLOC_FL_KEEP_SIZE, FALLOC_FL_PUNCH_HOLE
+linkat_flags = AT_EMPTY_PATH, AT_SYMLINK_FOLLOW
+unlinkat_flags = 0, AT_REMOVEDIR
+#renameat2_flags = RENAME_EXCHANGE, RENAME_NOREPLACE, RENAME_WHITEOUT
+name_to_handle_at_flags = AT_EMPTY_PATH, AT_SYMLINK_FOLLOW
+faccessat_flags = 0x100, 0x200, 0x400, 0x800, 0x1000
+sync_file_flags = SYNC_FILE_RANGE_WAIT_BEFORE, SYNC_FILE_RANGE_WRITE, SYNC_FILE_RANGE_WAIT_AFTER
+f_owner_type = F_OWNER_TID, F_OWNER_PID, F_OWNER_PGRP
+flock_op = LOCK_SH, LOCK_EX, LOCK_UN, LOCK_NB
+renameat2_flags = RENAME_EXCHANGE, RENAME_NOREPLACE, RENAME_WHITEOUT
+
+
+#include <linux/key.h>
+include <linux/keyctl.h>
+
+
+# key of type "keyring".  Note: for now we include KEY_SPEC_REQKEY_AUTH_KEY here
+# since it should be listed somewhere, though it's not actually a keyring.
+#keyring = KEY_SPEC_THREAD_KEYRING, KEY_SPEC_PROCESS_KEYRING, KEY_SPEC_SESSION_KEYRING, KEY_SPEC_USER_KEYRING, KEY_SPEC_USER_SESSION_KEYRING, KEY_SPEC_GROUP_KEYRING, KEY_SPEC_REQKEY_AUTH_KEY, KEY_SPEC_REQUESTOR_KEYRING
+
+add_key(type ptr[in, string], desc ptr[in, key_desc], payload buffer[in, opt], paylen len[payload], keyring fd[opt]) fd
+add_key$keyring(type ptr[in, string], desc ptr[in, key_desc], payload const[0], paylen const[0], keyring fd[opt]) fd
+add_key$user(type ptr[in, string], desc ptr[in, key_desc], payload buffer[in], paylen len[payload], keyring fd[opt]) fd
+request_key(type ptr[in, string], desc ptr[in, key_desc], callout ptr[in, string], keyring fd[opt]) fd
+keyctl$get_keyring_id(code const[KEYCTL_GET_KEYRING_ID], key fd, create intptr, x const[0], y const[0]) @valid_errno_or_non_negative
+keyctl$join(code const[KEYCTL_JOIN_SESSION_KEYRING], session ptr[in, key_desc, opt], x const[0], y const[0], z const[0]) @valid_errno_or_non_negative
+keyctl$update(code const[KEYCTL_UPDATE], key fd, payload buffer[in, opt], paylen len[payload], x const[0]) @valid_errno_or_non_negative
+keyctl$revoke(code const[KEYCTL_REVOKE], key fd, x const[0], y const[0], z const[0]) @valid_errno_or_non_negative
+keyctl$describe(code const[KEYCTL_DESCRIBE], key fd, desc buffer[out], len len[desc], x const[0]) @valid_errno_or_non_negative
+keyctl$clear(code const[KEYCTL_CLEAR], keyring fd, x const[0], y const[0], z const[0]) @valid_errno_or_non_negative
+keyctl$link(code const[KEYCTL_LINK], key fd, keyring fd, x const[0], y const[0]) @valid_errno_or_non_negative
+keyctl$unlink(code const[KEYCTL_UNLINK], key fd, keyring fd, x const[0], y const[0]) @valid_errno_or_non_negative
+keyctl$search(code const[KEYCTL_SEARCH], key fd, type ptr[in, string], desc ptr[in, key_desc], destination fd) @valid_errno_or_non_negative
+keyctl$read(code const[KEYCTL_READ], key fd, payload buffer[out], len len[payload], x const[0]) @valid_errno_or_non_negative
+keyctl$chown(code const[KEYCTL_CHOWN], key fd, uid uid, gid gid, x const[0]) @valid_errno_or_non_negative
+# perm is a mask of KEY_POS_VIEW, etc consants, but they cover almost whole int32.
+#keyctl$setperm(code const[KEYCTL_SETPERM], key fd, perm flags[key_perm], x const[0], y const[0]) @valid_errno_or_non_negative
+keyctl$negate(code const[KEYCTL_NEGATE], key fd, timeout intptr, keyring fd, x const[0]) @valid_errno_or_non_negative
+keyctl$set_reqkey_keyring(code const[KEYCTL_SET_REQKEY_KEYRING], reqkey flags[reqkey_keyring], x const[0], y const[0], z const[0]) @valid_errno_or_non_negative
+keyctl$set_timeout(code const[KEYCTL_SET_TIMEOUT], key fd, timeout int32, x const[0], y const[0]) @valid_errno_or_non_negative
+keyctl$assume_authority(code const[KEYCTL_ASSUME_AUTHORITY], key fd, x const[0], y const[0], z const[0]) @valid_errno_or_non_negative
+keyctl$get_security(code const[KEYCTL_GET_SECURITY], key fd, label buffer[out], len len[label], x const[0]) @valid_errno_or_non_negative
+keyctl$session_to_parent(code const[KEYCTL_SESSION_TO_PARENT], x const[0], y const[0], x1 const[0], y1 const[0]) @valid_errno_or_non_negative
+keyctl$reject(code const[KEYCTL_REJECT], key fd, timeout intptr, error intptr, keyring fd) @valid_errno_or_non_negative
+keyctl$instantiate_iov(code const[KEYCTL_INSTANTIATE_IOV], key fd, payload ptr[in, array[iovec]], len len[payload], ring fd) @valid_errno_or_non_negative
+keyctl$invalidate(code const[KEYCTL_INVALIDATE], key fd, x const[0], y const[0], z const[0]) @valid_errno_or_non_negative
+keyctl$get_persistent(code const[KEYCTL_GET_PERSISTENT], uid uid, keyring fd, x const[0], y const[0]) @valid_errno_or_non_negative
+keyctl$dh_compute(code const[KEYCTL_DH_COMPUTE], params ptr[in, keyctl_dh_params], buf buffer[out], buflen len[buf], kdf ptr[in, keyctl_kdf_params, opt]) @valid_errno_or_non_negative
+keyctl$restrict_keyring(code const[KEYCTL_RESTRICT_KEYRING], keyring fd, type ptr[in, string, opt], restriction ptr[in, string, opt], x const[0]) @valid_errno_or_non_negative
+keyctl$instantiate(code const[KEYCTL_INSTANTIATE], key fd, payload buffer[in], paylen len[payload], keyring fd[opt]) @valid_errno_or_non_negative
+
+reqkey_keyring = KEY_REQKEY_DEFL_NO_CHANGE, KEY_REQKEY_DEFL_DEFAULT, KEY_REQKEY_DEFL_THREAD_KEYRING, KEY_REQKEY_DEFL_PROCESS_KEYRING, KEY_REQKEY_DEFL_SESSION_KEYRING, KEY_REQKEY_DEFL_USER_KEYRING, KEY_REQKEY_DEFL_USER_SESSION_KEYRING, KEY_REQKEY_DEFL_GROUP_KEYRING, KEY_REQKEY_DEFL_REQUESTOR_KEYRING
+#key_perm = KEY_POS_VIEW, KEY_POS_READ, KEY_POS_WRITE, KEY_POS_SEARCH, KEY_POS_LINK, KEY_POS_SETATTR, KEY_USR_VIEW, KEY_USR_READ, KEY_USR_WRITE, KEY_USR_SEARCH, KEY_USR_LINK, KEY_USR_SETATTR, KEY_GRP_VIEW, KEY_GRP_READ, KEY_GRP_WRITE, KEY_GRP_SEARCH, KEY_GRP_LINK, KEY_GRP_SETATTR, KEY_OTH_VIEW, KEY_OTH_READ, KEY_OTH_WRITE, KEY_OTH_SEARCH, KEY_OTH_LINK, KEY_OTH_SETATTR, KEY_PERM_UNDEF
+
+key_type = "asymmetric", "big_key", "blacklist", "ceph", "cifs.idmap", "cifs.spnego", ".dead", "dns_resolver", "encrypted", "id_legacy", "id_resolver", "keyring", "logon", "pkcs7_test", ".request_key_auth", "rxrpc", "rxrpc_s", "syzkaller", "trusted", "user"
+
+# "syzP\x00"
+key_desc {
+	prefix	ptr[in, string]
+	id	int8
+	z	const[0, int8]
+}
+
+keyctl_dh_params {
+	private	fd
+	prime	fd
+	base	fd
+}
+
+keyctl_kdf_params {
+	hashname	ptr[in, string]
+	otherinfo	ptr[in, buffer[opt]]
+	otherinfolen	len[otherinfo, int32]
+	__spare		array[const[0, int32], 8]
+}
+
+
+
+key_encrypted_format = "ecryptfs", "default"
+key_encrypted_key_type = "trusted"
+
+
+
+
+
+
+
+define EXT4_IOC_GETFLAGS       FS_IOC_GETFLAGS
+define EXT4_IOC_SETFLAGS       FS_IOC_SETFLAGS
+define EXT4_IOC_GETVERSION     _IOR('f', 3, long)
+define EXT4_IOC_SETVERSION     _IOW('f', 4, long)
+define EXT4_IOC_GETVERSION_OLD     FS_IOC_GETVERSION
+define EXT4_IOC_SETVERSION_OLD     FS_IOC_SETVERSION
+define EXT4_IOC_GETRSVSZ       _IOR('f', 5, long)
+define EXT4_IOC_SETRSVSZ       _IOW('f', 6, long)
+define EXT4_IOC_GROUP_EXTEND       _IOW('f', 7, unsigned long)
+define EXT4_IOC_GROUP_ADD      _IOW('f', 8, struct ext4_new_group_input)
+define EXT4_IOC_MIGRATE        _IO('f', 9)
+define EXT4_IOC_ALLOC_DA_BLKS      _IO('f', 12)
+define EXT4_IOC_MOVE_EXT       _IOWR('f', 15, struct move_extent)
+define EXT4_IOC_RESIZE_FS      _IOW('f', 16, __u64)
+define EXT4_IOC_SWAP_BOOT      _IO('f', 17)
+define EXT4_IOC_PRECACHE_EXTENTS   _IO('f', 18)
+
+
+define EXT4_SECRM_FL           0x00000001 /* Secure deletion */
+define EXT4_UNRM_FL            0x00000002 /* Undelete */
+define EXT4_COMPR_FL           0x00000004 /* Compress file */
+define EXT4_SYNC_FL            0x00000008 /* Synchronous updates */
+define EXT4_IMMUTABLE_FL       0x00000010 /* Immutable file */
+define EXT4_APPEND_FL          0x00000020 /* writes to file may only append */
+define EXT4_NODUMP_FL          0x00000040 /* do not dump file */
+define EXT4_NOATIME_FL         0x00000080 /* do not update atime */
+define EXT4_DIRTY_FL           0x00000100
+define EXT4_COMPRBLK_FL        0x00000200 /* One or more compressed clusters */
+define EXT4_NOCOMPR_FL         0x00000400 /* Don't compress */
+define EXT4_ENCRYPT_FL         0x00000800 /* encrypted file */
+define EXT4_INDEX_FL           0x00001000 /* hash-indexed directory */
+define EXT4_IMAGIC_FL          0x00002000 /* AFS directory */
+define EXT4_JOURNAL_DATA_FL        0x00004000 /* file data should be journaled */
+define EXT4_NOTAIL_FL          0x00008000 /* file tail should not be merged */
+define EXT4_DIRSYNC_FL         0x00010000 /* dirsync behaviour (directories only) */
+define EXT4_TOPDIR_FL          0x00020000 /* Top of directory hierarchies*/
+define EXT4_HUGE_FILE_FL               0x00040000 /* Set to each huge file */
+define EXT4_EXTENTS_FL         0x00080000 /* Inode uses extents */
+define EXT4_EA_INODE_FL            0x00200000 /* Inode used for large EA */
+define EXT4_EOFBLOCKS_FL       0x00400000 /* Blocks allocated beyond EOF */
+define EXT4_INLINE_DATA_FL     0x10000000 /* Inode has inline data. */
+define EXT4_PROJINHERIT_FL     0x20000000 /* Create with parents projid */
+define EXT4_RESERVED_FL        0x80000000 /* reserved for ext4 lib */
+
+define EXT4_FL_USER_VISIBLE        0x304BDFFF /* User visible flags */
+define EXT4_FL_USER_MODIFIABLE     0x204BC0FF /* User modifiable flags */
+
+
+ioctl$EXT4_IOC_SETFLAGS(fd fd, cmd const[EXT4_IOC_SETFLAGS], arg ptr[in, flags[ext4_inode_flags, intptr]]) @valid_errno_or_non_negative
+ioctl$EXT4_IOC_GROUP_EXTEND(fd fd, cmd const[EXT4_IOC_GROUP_EXTEND], arg ptr[in, intptr]) @valid_errno_or_non_negative
+ioctl$EXT4_IOC_GROUP_ADD(fd fd, cmd const[EXT4_IOC_GROUP_ADD], arg ptr[in, ext4_new_group_input]) @valid_errno_or_non_negative
+ioctl$EXT4_IOC_MIGRATE(fd fd, cmd const[EXT4_IOC_MIGRATE], x const[0]) @valid_errno_or_non_negative
+ioctl$EXT4_IOC_ALLOC_DA_BLKS(fd fd, cmd const[EXT4_IOC_ALLOC_DA_BLKS], x const[0]) @valid_errno_or_non_negative
+ioctl$EXT4_IOC_MOVE_EXT(fd fd, cmd const[EXT4_IOC_MOVE_EXT], arg ptr[in, move_extent]) @valid_errno_or_non_negative
+ioctl$EXT4_IOC_RESIZE_FS(fd fd, cmd const[EXT4_IOC_RESIZE_FS], arg ptr[in, int64]) @valid_errno_or_non_negative
+ioctl$EXT4_IOC_SWAP_BOOT(fd fd, cmd const[EXT4_IOC_SWAP_BOOT], x const[0]) @valid_errno_or_non_negative
+ioctl$EXT4_IOC_PRECACHE_EXTENTS(fd fd, cmd const[EXT4_IOC_PRECACHE_EXTENTS], x const[0]) @valid_errno_or_non_negative
+
+ext4_inode_flags = EXT4_SECRM_FL, EXT4_UNRM_FL, EXT4_COMPR_FL, EXT4_SYNC_FL, EXT4_IMMUTABLE_FL, EXT4_APPEND_FL, EXT4_NODUMP_FL, EXT4_NOATIME_FL, EXT4_PROJINHERIT_FL, EXT4_EOFBLOCKS_FL, EXT4_JOURNAL_DATA_FL, EXT4_NOTAIL_FL, EXT4_DIRSYNC_FL, EXT4_TOPDIR_FL, EXT4_EXTENTS_FL
+
+
+ext4_new_group_input {
+	group		int32
+	block_bitmap	int64
+	inode_bitmap	int64
+	inode_table	int64
+	blocks_count	int32
+	reserved_blocks	int16
+	unused		const[0, int16]
+#	reserved int64
+}
+
+move_extent {
+	reserved	const[0, int32]
+	donor_fd	fd
+	orig_start	int64
+	donor_start	int64
+	len		int64
+	moved_len	int64
+}

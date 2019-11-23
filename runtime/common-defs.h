@@ -1,0 +1,26 @@
+#ifndef COMMON_DEFS_H
+#define COMMON_DEFS_H
+
+#define _GNU_SOURCE
+
+// Hack preventing LKL's BPF definitions from interfering with host ones
+#define __LKL__LINUX_BPF_H__
+union lkl_bpf_attr;
+
+#include <stdint.h>
+#include <memory.h>
+
+#define MAX_PART_COUNT 10
+
+#define MAX_INPUT_LEN (1 << 16)
+#define MAX_BUFFER_LEN (1 << 20)
+#define MAX_FILE_NAME_LEN (1 << 16)
+#define MAX_STRING_LEN (1 << 16)
+
+struct fuzzer_state;
+
+typedef char filename_t[MAX_FILE_NAME_LEN];
+typedef char string_t[MAX_STRING_LEN];
+typedef uint8_t buffer_t[MAX_BUFFER_LEN];
+
+#endif // COMMON_DEFS_H
