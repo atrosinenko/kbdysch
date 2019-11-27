@@ -13,16 +13,6 @@
 #include "lkl.h"
 #endif
 
-#define CHECK_THAT(x) check_that_impl((x), #x)
-
-static inline void check_that_impl(int x, const char *line)
-{
-  if (!x) {
-    fprintf(stderr, "Check failed: %s\n", line);
-    abort();
-  }
-}
-
 /// \defgroup usage_help
 /// @{
 
@@ -93,6 +83,25 @@ void warn_lkl_not_supported(void);
 #define GET_ERRNO(state, returned_value) (is_native_invoker(state) ? errno : (warn_lkl_not_supported(), 0))
 #define STRERROR(state, returned_value)  (is_native_invoker(state) ? strerror(errno) : (warn_lkl_not_supported(), NULL))
 #endif
+
+#define CHECK_THAT(x) check_that_impl((x), #x)
+#define CHECK_INVOKER_ERRNO(state, x) check_invoker_errno_impl((state), (x), #x)
+
+static inline void check_that_impl(int x, const char *line)
+{
+  if (!x) {
+    fprintf(stderr, "Check failed: %s\n", line);
+    abort();
+  }
+}
+
+static inline void check_invoker_errno_impl(struct fuzzer_state *state, int err, const char *line)
+{
+  if (err != 0) {
+    fprintf(stderr, "Check failed: %s (%s)\n", line, STRERROR(state, err));
+    abort();
+  }
+}
 
 /// Whether `x` fits in 8 bits
 #define IS_U8(x)  (((x) & ~0xffLLu      ) == 0)

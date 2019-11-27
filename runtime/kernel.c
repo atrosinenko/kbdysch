@@ -326,13 +326,13 @@ static void recurse_into_directory(struct fuzzer_state *state, int part, struct 
 
     // is this a directory itself?
     struct lkl_stat statbuf;
-    CHECK_THAT(lkl_sys_stat(file_scanner_tmp_buf, &statbuf) == 0);
+    CHECK_INVOKER_ERRNO(state, lkl_sys_stat(file_scanner_tmp_buf, &statbuf));
     if (S_ISDIR(statbuf.st_mode)) {
       int err;
       struct lkl_dir *dir_to_recurse = lkl_opendir(file_scanner_tmp_buf, &err);
       CHECK_THAT(dir_to_recurse != NULL);
       recurse_into_directory(state, part, dir_to_recurse);
-      CHECK_THAT(lkl_closedir(dir_to_recurse) == 0);
+      CHECK_INVOKER_ERRNO(state, lkl_closedir(dir_to_recurse));
     }
 
     // dropping path component
@@ -480,7 +480,7 @@ int kernel_open_char_dev_by_sysfs_name(struct fuzzer_state *state, const char *n
   // crete device file
   dev_t dev = makedev(major, minor);
   int mknod_result = INVOKE_SYSCALL(state, mknodat, AT_FDCWD, (long)dev_name, S_IFCHR | S_IRUSR | S_IWUSR, dev);
-  CHECK_THAT(mknod_result == 0);
+  CHECK_INVOKER_ERRNO(state, mknod_result);
   fprintf(stderr, "  created device file: %s\n", dev_name);
 
   // open the just created device
@@ -504,7 +504,7 @@ int kernel_scan_for_files(struct fuzzer_state *state, int part)
 
 #ifdef USE_LKL
 
-  CHECK_THAT(lkl_sys_chdir(state->partitions[part].mount_point) == 0);
+  CHECK_INVOKER_ERRNO(state, lkl_sys_chdir(state->partitions[part].mount_point));
   // now assuming we are in LKL mode
   int err;
   struct lkl_dir *fs_root_dir = lkl_opendir(".", &err);
@@ -512,8 +512,8 @@ int kernel_scan_for_files(struct fuzzer_state *state, int part)
   file_scanner_tmp_buf[0] = '.';
   file_scanner_tmp_buf[1] = '\0';
   recurse_into_directory(state, part, fs_root_dir);
-  CHECK_THAT(lkl_closedir(fs_root_dir) == 0);
-  CHECK_THAT(lkl_sys_chdir("/") == 0);
+  CHECK_INVOKER_ERRNO(state, lkl_closedir(fs_root_dir));
+  CHECK_INVOKER_ERRNO(state, lkl_sys_chdir("/"));
 
 #endif
 
