@@ -63,6 +63,8 @@ void kernel_configure_diskless(struct fuzzer_state *state);
 void kernel_boot(struct fuzzer_state *state, const char *cmdline);
 void kernel_write_to_file(struct fuzzer_state *state, const char *filename, const char *data);
 int kernel_open_char_dev_by_sysfs_name(struct fuzzer_state *state, const char *name, const char *sysfs_id);
+int kernel_scan_for_files(struct fuzzer_state *state, int part);
+void kernel_dump_file_names(struct fuzzer_state *state);
 void start_forksrv(void);
 
 /**

@@ -291,6 +291,56 @@ static void my_printk(const char *msg, int len)
   }
 }
 
+// path is relative to current mount point (cwd for the time of scanning)!
+static char file_scanner_tmp_buf[MAX_FILE_NAME_LEN];
+// stack of visited inodes, to handle hard linked directory loops
+static ino64_t inode_stack[128];
+static int inode_stack_size;
+
+static void recurse_into_directory(struct fuzzer_state *state, int part, struct lkl_dir *dir)
+{
+  struct lkl_linux_dirent64 *dirent;
+  size_t old_len = strlen(file_scanner_tmp_buf); // might be optimized, but not on hot path anyway
+  while ((dirent = lkl_readdir(dir)) != NULL) {
+    // is this "." or ".."?
+    if (strcmp(dirent->d_name, ".") == 0 || strcmp(dirent->d_name, "..") == 0) {
+      continue;
+    }
+
+    // are we on a directory loop?
+    int dir_loop = 0;
+    for (int i = 0; i < inode_stack_size; ++i) {
+      if (inode_stack[i] == dirent->d_ino) {
+        dir_loop = 1;
+        break;
+      }
+    }
+    if (dir_loop) {
+      continue;
+    }
+
+    // temporarily adding new path component
+    snprintf(file_scanner_tmp_buf + old_len, sizeof(file_scanner_tmp_buf) - old_len, "/%s", dirent->d_name);
+    state->mutable_state.file_names[state->mutable_state.file_name_count++] = strdup(file_scanner_tmp_buf);
+    inode_stack[inode_stack_size++] = dirent->d_ino;
+
+    // is this a directory itself?
+    struct lkl_stat statbuf;
+    CHECK_THAT(lkl_sys_stat(file_scanner_tmp_buf, &statbuf) == 0);
+    if (S_ISDIR(statbuf.st_mode)) {
+      int err;
+      struct lkl_dir *dir_to_recurse = lkl_opendir(file_scanner_tmp_buf, &err);
+      CHECK_THAT(dir_to_recurse != NULL);
+      recurse_into_directory(state, part, dir_to_recurse);
+      CHECK_THAT(lkl_closedir(dir_to_recurse) == 0);
+    }
+
+    // dropping path component
+    file_scanner_tmp_buf[old_len] = '\0';
+    inode_stack_size--;
+  }
+}
+
 #else // USE_LKL
 
 void kernel_setup_disk(struct fuzzer_state *state, const char *filename, const char *fstype)
@@ -440,4 +490,39 @@ int kernel_open_char_dev_by_sysfs_name(struct fuzzer_state *state, const char *n
   fprintf(stderr, "  DONE\n");
 
   return fd;
+}
+
+
+int kernel_scan_for_files(struct fuzzer_state *state, int part)
+{
+  if (state->constant_state.native_mode) {
+    fprintf(stderr, "Scanning files in a native mode makes little sense and anyway seems like a bad idea, exiting.\n");
+    exit(1);
+  }
+
+  const int old_file_count = state->mutable_state.file_name_count;
+
+#ifdef USE_LKL
+
+  CHECK_THAT(lkl_sys_chdir(state->partitions[part].mount_point) == 0);
+  // now assuming we are in LKL mode
+  int err;
+  struct lkl_dir *fs_root_dir = lkl_opendir(".", &err);
+  CHECK_THAT(fs_root_dir != NULL);
+  file_scanner_tmp_buf[0] = '.';
+  file_scanner_tmp_buf[1] = '\0';
+  recurse_into_directory(state, part, fs_root_dir);
+  CHECK_THAT(lkl_closedir(fs_root_dir) == 0);
+  CHECK_THAT(lkl_sys_chdir("/") == 0);
+
+#endif
+
+  return state->mutable_state.file_name_count - old_file_count;
+}
+
+void kernel_dump_file_names(struct fuzzer_state *state)
+{
+  for (int i = 0; i < state->mutable_state.file_name_count; ++i) {
+    fprintf(stderr, "  %s\n", state->mutable_state.file_names[i]);
+  }
 }

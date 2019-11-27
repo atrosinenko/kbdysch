@@ -3,6 +3,15 @@
 
 static const int MAX_INPUT_OPS = 25;
 
+static void check_part_is_clean(struct fuzzer_state *state, int part, const char *name)
+{
+  if (kernel_scan_for_files(state, part) != 0) {
+    kernel_dump_file_names(state);
+    fprintf(stderr, "Error: the partition %s has some files, this is not supported in comparison mode, exiting.\n", name);
+    abort();
+  }
+}
+
 int main(int argc, const char *argv[])
 {
   struct fuzzer_state * const state = create_state(argc, argv);
@@ -18,10 +27,26 @@ int main(int argc, const char *argv[])
   if (is_native_invoker(state)) {
     kernel_setup_dummy_disk(state);
   } else {
-    for (int i = 2; i < argc; ++i) {
-      kernel_setup_disk(state, argv[i], argv[i]);
+    int part_count = argc - 2;
+    if (part_count == 0) {
+      fprintf(stderr, "You have configured LKL invoker without any partition, exiting.\n");
+      exit(1);
+    }
+    for (int i = 0; i < part_count; ++i) {
+      kernel_setup_disk(state, argv[2 + i], argv[2 + i]);
     }
     kernel_boot(state, argv[1]);
+    if (part_count > 1) {
+      for (int i = 0; i < part_count; ++i) {
+        check_part_is_clean(state, i, argv[2 + i]);
+      }
+    } else {
+      int file_count = kernel_scan_for_files(state, 0);
+      if (file_count > 0) {
+        kernel_dump_file_names(state);
+        fprintf(stderr, "Found %d files on %s. This is OK since not in comparison mode.\n", file_count, argv[2 + 0]);
+      }
+    }
   }
 
   res_load_whole_stdin(state);
