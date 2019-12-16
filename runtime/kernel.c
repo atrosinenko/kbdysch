@@ -12,6 +12,9 @@
 
 #ifdef USE_LKL
 
+// Unfortunately, printk does not have `state` argument...
+static int patching_was_performed = 0;
+
 static void kernel_dump_all_pertitions_if_requested(struct fuzzer_state *state)
 {
   if (!get_bool_knob("DUMP", 0))
@@ -232,9 +235,9 @@ static void patch_one(struct fuzzer_state *state, partition_t *partition)
   const unsigned char op = res_get_u8(state);
   const int32_t arg = res_get_u32(state);
   const int patch_size = (op & 0x70) >> 4;
-  const int patch_local_range = partition->off_end[access_nr] - partition->off_start[access_nr] - patch_size;
+  const int patch_local_range = partition->off_end[access_nr] - partition->off_start[access_nr] - patch_size + 1;
 
-  if (patch_local_range < 0)
+  if (patch_local_range <= 0)
     return;
 
   const int32_t param2 = res_get_u32(state);
@@ -277,7 +280,7 @@ static void my_printk(const char *msg, int len)
     fwrite(msg, len, 1, stderr);
   }
 
-  if (nbw != (uint64_t)-1LL) {
+  if (!patching_was_performed && nbw != (uint64_t)-1LL) {
     memcpy(print_buf, msg, len);
     print_buf[len] = 0;
     if (strcasestr(print_buf, "errors=remount-ro")) {
@@ -394,7 +397,7 @@ void kernel_perform_patching(struct fuzzer_state *state)
     fprintf(stderr, "PATCH requested in native mode, exiting.\n");
     exit(1);
   }
-  if (state->constant_state.part_count) {
+  if (state->constant_state.part_count > 1) {
     fprintf(stderr, "PATCH requested in comparison mode, exiting.\n");
     exit(1);
   }
@@ -413,6 +416,8 @@ void kernel_perform_patching(struct fuzzer_state *state)
   const int count = res_get_u8(state) % 32;
   fprintf(stderr, "PATCH count requested = %d\n", count);
   unmount_all(state);
+  state->mutable_state.patch_was_invoked = 1;
+  patching_was_performed = 1;
   for(int i = 0; i < count; ++i) {
     patch_one(state, partition);
   }
