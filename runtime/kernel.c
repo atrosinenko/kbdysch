@@ -271,20 +271,20 @@ static void my_printk(const char *msg, int len)
 {
   static char print_buf[65536];
   int do_print = !get_bool_knob("NO_PRINTK", 0);
-  int do_check = !get_bool_knob("NO_BAD_WORDS", 0);
+  uint64_t nbw = get_int_knob("NO_BAD_WORDS", 0);
 
   if (do_print) {
     fwrite(msg, len, 1, stderr);
   }
 
-  if (do_check) {
+  if (nbw != (uint64_t)-1LL) {
     memcpy(print_buf, msg, len);
     print_buf[len] = 0;
-    if (strcasestr(print_buf, "error") && !strcasestr(print_buf, "errors=remount-ro")) {
-      abort();
+    if (strcasestr(print_buf, "errors=remount-ro")) {
+      return;
     }
     for (int i = 0; i < sizeof(BAD_WORDS) / sizeof(BAD_WORDS[0]); ++i) {
-      if (strcasestr(print_buf, BAD_WORDS[i])) {
+      if ((nbw & (1 << i)) == 0 && strcasestr(print_buf, BAD_WORDS[i])) {
         abort();
       }
     }

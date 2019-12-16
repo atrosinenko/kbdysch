@@ -20,9 +20,11 @@ struct lkl_disk {
  * is considered as failure (can be disabled).
  */
 static const char *BAD_WORDS[] = {
+  "error",
   "corrupt",
   "oops",
   "undefined behavior",
+  "call trace"
 };
 
 #define MAX_FILE_NAME_COUNT 128
