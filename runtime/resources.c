@@ -175,19 +175,20 @@ void res_fill_string(struct fuzzer_state *state, const char *name, char *value)
 
 void res_fill_buffer(struct fuzzer_state *state, const char *name, buffer_t buf, uint64_t *length, direction_t dir)
 {
-  *length = res_get_u32(state) % MAX_BUFFER_LEN;
-  if (*length <= 28) {
+  size_t len = res_get_u32(state) % MAX_BUFFER_LEN;
+  if (len <= 28) {
     // read string as-is if consuming <= 32 bytes in total
-    res_copy_bytes(state, buf, *length);
-    LOG_ASSIGN("<buffer of size %zu, verbatim contents>", *length);
+    res_copy_bytes(state, buf, len);
+    LOG_ASSIGN("<buffer of size %zu, verbatim contents>", len);
   } else {
     // fill with pseudo-random contents
-    for (uint i = 0; i < *length; i += 4) {
+    for (uint i = 0; i < len; i += 4) {
       uint64_t rnd = res_rand(state); // use 4 least significant bytes
       memcpy(buf + i, &rnd, 4);
     }
-    LOG_ASSIGN("<buffer of size %zu, pseudo-random contents>", *length);
+    LOG_ASSIGN("<buffer of size %zu, pseudo-random contents>", len);
   }
+  *length = len;
 }
 
 static int res_create_file_name(struct fuzzer_state *state)
@@ -241,7 +242,7 @@ void res_fill_file_name(struct fuzzer_state *state, const char *name, char *valu
     // replay index
     index_for_result = state->mutable_state.file_name_indexes_for_replay[state->mutable_state.file_name_current_index++];
   }
-  snprintf(value, MAX_FILE_NAME_LEN, "%s%s",
+  snprintf(value, MAX_FILE_NAME_LEN, "%s/%s",
       state->partitions[state->mutable_state.current_part].mount_point,
       state->mutable_state.file_names[index_for_result]
   );
