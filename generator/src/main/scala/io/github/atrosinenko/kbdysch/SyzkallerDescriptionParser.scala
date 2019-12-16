@@ -32,7 +32,9 @@ object SyzkallerDescriptionParser {
     val someString: Parser[String] = P((letter | digit | CharIn("_\\.")).rep(1).!)
 
     val integer: Parser[Int] = P(("-".? ~ digit.rep(1)).!.map(_.toInt))
-    val range: Parser[(Int, Int)] = P(integer ~ ":" ~ integer)
+    val range: Parser[IntegerRange] = P(integer ~ ":" ~ integer).map {
+      case (min, max) => IntegerRange(min, max)
+    }
 
     val typeName: Parser[String] = P((
       "const" | "int8" | "int16" | "int32" | "int64" | "intptr" |
