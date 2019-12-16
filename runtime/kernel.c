@@ -457,10 +457,10 @@ int kernel_open_char_dev_by_sysfs_name(struct fuzzer_state *state, const char *n
   char sysfs_name[128];
   char dev_name[128];
   if (is_native_invoker(state)) {
-    sprintf(sysfs_name, "/sysfs/class/%s/dev", sysfs_id);
+    sprintf(sysfs_name, "/sys/%s/dev", sysfs_id);
     sprintf(dev_name, "/tmp/%s", name);
   } else {
-    sprintf(sysfs_name, "/sys/class/%s/dev", sysfs_id);
+    sprintf(sysfs_name, "/sysfs/%s/dev", sysfs_id);
     sprintf(dev_name, "/%s", name);
   }
 
@@ -479,7 +479,7 @@ int kernel_open_char_dev_by_sysfs_name(struct fuzzer_state *state, const char *n
   const char *semicolon = strchr(str_dev_id, ':');
   CHECK_THAT(semicolon != NULL);
   int major = atoi(str_dev_id);
-  int minor = atoi(str_dev_id + 1);
+  int minor = atoi(semicolon + 1);
   fprintf(stderr, "  parsed as: major = %d, minor = %d\n", major, minor);
 
   // crete device file
