@@ -25,6 +25,7 @@ int main(int argc, const char *argv[])
   }
 
   union bpf_attr attr;
+  memset(&attr, 0, sizeof(attr));
 
   attr.prog_type = BPF_PROG_TYPE_SOCKET_FILTER;
   attr.license   = (uint64_t) "GPL";

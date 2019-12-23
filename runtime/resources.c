@@ -95,7 +95,7 @@ static uint8_t *get_and_consume(struct fuzzer_state *state, size_t bytes)
 
 uint64_t res_get_uint(struct fuzzer_state *state, const char *name, size_t size)
 {
-  uint64_t result;
+  uint64_t result = 0;
   assert(size == 1 || size == 2 || size == 4 || size == 8);
   res_align_next_to(state, size);
   if (state->saved_state.offset + size > state->constant_state.length) {
@@ -192,7 +192,7 @@ void res_fill_buffer(struct fuzzer_state *state, const char *name, buffer_t buf,
 
 static int res_create_file_name(struct fuzzer_state *state)
 {
-  static char tmp_buf[MAX_FILE_NAME_LEN];
+  static char tmp_buf[MAX_FILE_NAME_LEN + 128];
   uint64_t chain_to = res_get_u16(state) % state->mutable_state.file_name_count;
   uint16_t component_length = res_get_u16(state);
 
@@ -203,6 +203,7 @@ static int res_create_file_name(struct fuzzer_state *state)
 
   // create new path component
   if (component_length < 28) {
+    // read string as-is if consuming <= 32 bytes in total
     res_copy_bytes(state, tmp_buf, component_length);
     for (int i = 0; i < component_length; ++i) {
       if (tmp_buf[i] == '.') {
@@ -214,12 +215,12 @@ static int res_create_file_name(struct fuzzer_state *state)
   } else {
     // fill with pseudo-random contents
     component_length %= MAX_FILE_NAME_LEN;
-    for (uint i = 0; i < component_length; i += 4) {
-      // read string as-is if consuming <= 32 bytes in total
+    for (uint i = 0; i < component_length + 4; i += 4) {
       uint64_t rnd = res_rand(state); // use 4 least significant bytes
-      memcpy(tmp_buf + i, &rnd, 4);
+      memcpy(tmp_buf + i, &rnd, 4); // little-endian
     }
   }
+  tmp_buf[component_length] = '\0';
 
   // attach the newly created component to the selected existing one
   char *new_name =  malloc(MAX_FILE_NAME_LEN);
