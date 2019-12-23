@@ -33,6 +33,7 @@ void res_set_input_data(struct fuzzer_state *state, uint8_t *data, size_t size)
 
 void res_load_whole_stdin(struct fuzzer_state *state)
 {
+  start_forksrv();
   state->constant_state.length = read(STDIN_FILENO, state->constant_state.input_buffer, MAX_INPUT_LEN);
   if (state->constant_state.length == -1) {
     perror("Cannot read input from stdin");
