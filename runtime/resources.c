@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <syscall.h>
-#include <sys/random.h>
 
 int res_should_log_assignments(struct fuzzer_state *state)
 {

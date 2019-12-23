@@ -2,7 +2,6 @@
 
 #include "internal-defs.h"
 
-#include <sys/random.h>
 #include <pth.h>
 
 static void __attribute__((constructor)) constr(void)
@@ -23,8 +22,7 @@ struct fuzzer_state *create_state(int argc, const char *argv[])
 
   result->constant_state.log_assigns = !get_bool_knob("NO_LOG", 0);
 
-  getrandom(&result->current_state.rng_state, 8, 0);
-  result->current_state.rng_state |= 1;
+  result->current_state.rng_state = 12345678901L | 1;
 
   result->constant_state.native_mode = argc == 2 && (strcmp(argv[1], "native") == 0);
   result->mutable_state.file_names[0] = "";
