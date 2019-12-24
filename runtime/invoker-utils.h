@@ -189,17 +189,17 @@ static inline uint8_t res_get_u8(struct fuzzer_state *state)
 
 static inline uint16_t res_get_u16(struct fuzzer_state *state)
 {
-  return (uint16_t)res_get_uint(state, NULL, 1);
+  return (uint16_t)res_get_uint(state, NULL, 2);
 }
 
 static inline uint32_t res_get_u32(struct fuzzer_state *state)
 {
-  return (uint32_t)res_get_uint(state, NULL, 1);
+  return (uint32_t)res_get_uint(state, NULL, 4);
 }
 
 static inline uint64_t res_get_u64(struct fuzzer_state *state)
 {
-  return (uint64_t)res_get_uint(state, NULL, 1);
+  return (uint64_t)res_get_uint(state, NULL, 8);
 }
 
 /// @}
