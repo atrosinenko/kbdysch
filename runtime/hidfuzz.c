@@ -20,7 +20,7 @@ int main(int argc, const char *argv[])
 
   struct fuzzer_state *state = create_state(argc, argv);
 
-  kernel_configure_diskless(state);
+  kernel_configure_diskless(state, "/tmp/");
   if (!is_native_invoker(state)) {
     kernel_boot(state, argv[1]);
   }

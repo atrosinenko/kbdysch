@@ -25,7 +25,7 @@ int main(int argc, const char *argv[])
         USAGE_THEN_DO  ("Run in comparison mode (PATCH op is disabled)"));
 
   if (is_native_invoker(state)) {
-    kernel_setup_dummy_disk(state);
+    kernel_configure_diskless(state, "." /* current directory */);
   } else {
     int part_count = argc - 2;
     if (part_count == 0) {

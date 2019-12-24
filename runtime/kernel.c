@@ -353,22 +353,7 @@ void kernel_setup_disk(struct fuzzer_state *state, const char *filename, const c
 
 #endif // USE_LKL
 
-void kernel_setup_dummy_disk(struct fuzzer_state *state)
-{
-  if (!state->constant_state.native_mode) {
-    fprintf(stderr, "Refused to setup dummy disk in the current directory in LKL mode!\n");
-    abort();
-  }
-
-  state->constant_state.diskless = 0;
-  state->constant_state.part_count = 1;
-  strcpy(state->partitions[0].fstype, "<dummy>");
-  strcpy(state->partitions[0].mount_point, "./");
-  state->partitions[0].registered_fds[0] = -1; // invalid FD
-  state->partitions[0].registered_fds_count = 1;
-}
-
-void kernel_configure_diskless(struct fuzzer_state *state)
+void kernel_configure_diskless(struct fuzzer_state *state, const char *mpoint)
 {
   state->constant_state.diskless = 1;
   state->constant_state.part_count = 1;
@@ -376,7 +361,10 @@ void kernel_configure_diskless(struct fuzzer_state *state)
 
   root_pseudo_partition->size = 0;
   root_pseudo_partition->data = NULL;
+  strcpy(root_pseudo_partition->mount_point, mpoint);
   strncpy(root_pseudo_partition->fstype,  "<root pseudo partition>", sizeof(root_pseudo_partition->fstype));
+  root_pseudo_partition->registered_fds[0] = -1; // invalid FD
+  root_pseudo_partition->registered_fds_count = 1; // count is never zero to avoid [x % 0]
 }
 
 void kernel_perform_remount(struct fuzzer_state *state)
