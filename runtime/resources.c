@@ -279,6 +279,13 @@ void res_process_integer(struct fuzzer_state *state, const char *name, uint64_t 
 
 void res_process_errno(struct fuzzer_state *state, const char *name, uint64_t reference, uint64_t value)
 {
+  if (value == -EFAULT && !get_bool_knob("FAULT_IS_OK", 0)) {
+    fprintf(stderr, "EFAULT is returned as %s. Possible reasons:\n", name);
+    fprintf(stderr, "  * some buffers should be specifically aligned (at page boundary, for example)\n");
+    fprintf(stderr, "  * some buffers should be allocated using \"guest\" mmap()\n");
+    fprintf(stderr, "Try adjusting invoker description or specify FAULT_IS_OK knob.\n");
+    abort();
+  }
   if (value < 0 && STRERROR(state, (int)value) == STRERROR(state, 100500)) {
     fprintf(stderr, "Invalid errno:\n");
     fprintf(stderr, "  Name = %s\n", name);
