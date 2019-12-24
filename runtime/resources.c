@@ -323,7 +323,7 @@ void res_process_length(struct fuzzer_state *state, const char *name, uint64_t r
 void res_process_buffer(struct fuzzer_state *state, const char *name, buffer_t refBuf, uint64_t refLength, buffer_t buf, uint64_t length, direction_t dir)
 {
   assert(refLength == length);
-  if (memcmp(refBuf, buf, length) != 0) {
+  if (refBuf != buf && memcmp(refBuf, buf, length) != 0) {
     // slow path...
     uint64_t ind;
     for (ind = 0; ind < length; ++ind) {
@@ -347,7 +347,7 @@ void res_process_file_name(struct fuzzer_state *state, const char *name, const c
 
 void res_process_string(struct fuzzer_state *state, const char *name, const char *reference, const char *value)
 {
-  if (strncmp(reference, value, MAX_STRING_LEN) != 0) {
+  if (reference != value && strncmp(reference, value, MAX_STRING_LEN) != 0) {
     int part = state->mutable_state.current_part;
     fprintf(stderr, "Returned strings differ:\n");
     fprintf(stderr, "  Name = %s\n", name);
@@ -360,6 +360,8 @@ void res_process_string(struct fuzzer_state *state, const char *name, const char
 
 int res_need_recurse_into_pointees(struct fuzzer_state *state, const char *name, void *reference, void *value)
 {
+  // recursing even if reference == value,
+  // since there can be generic validation apart from comparison
   if ((reference == NULL) != (value == NULL)) {
     int part = state->mutable_state.current_part;
     fprintf(stderr, "Returned pointers are inconsistent:\n");
