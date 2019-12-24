@@ -176,6 +176,15 @@ void res_fill_string(struct fuzzer_state *state, const char *name, char *value)
 void res_fill_buffer(struct fuzzer_state *state, const char *name, buffer_t buf, uint64_t *length, direction_t dir)
 {
   size_t len = res_get_u32(state) % MAX_BUFFER_LEN;
+  *length = len;
+  if (dir == OUT) {
+    // fastpath
+    if (state->constant_state.part_count > 1) {
+      // make buffer contents initially identical in case not fully overwritten
+      memset(buf, 0, len);
+    }
+    return;
+  }
   if (len <= 28) {
     // read string as-is if consuming <= 32 bytes in total
     res_copy_bytes(state, buf, len);
