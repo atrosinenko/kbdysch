@@ -1,4 +1,4 @@
-# kBdysch
+# kBdysch [![Build Status](https://travis-ci.org/atrosinenko/kbdysch.svg?branch=master)](https://travis-ci.org/atrosinenko/kbdysch)
 
 kBdysch is a collection of fast Linux kernel specific fuzzing harnesses supposed to be run **in userspace** in a guided fuzzing manner.
 It was designed with [AFL](https://github.com/google/AFL) compatibility in mind but AFL is not required to use this project.

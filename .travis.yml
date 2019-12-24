@@ -1,5 +1,14 @@
-language: generic
+language: minimal
 os: linux
+dist: bionic
+jdk: openjdk11
+
+addons:
+  apt:
+    packages:
+    - cmake
+    - libpth-dev
+
 script:
 - ./update_invokers.sh
 - mkdir build

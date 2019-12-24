@@ -8,12 +8,12 @@ set(   LKL_LIB_PATH     "${PROJECT_BINARY_DIR}/liblkl.a"    CACHE STRING "Full p
 
 include_directories(${PROJECT_SOURCE_DIR})
 
-link_libraries(-lpth)
+link_libraries(-lpth -lrt)
 
 set(COMMON_SRCS kernel.c resources.c util.c)
 
 if (USE_LKL)
-    link_libraries(${LKL_LIB_PATH} -lrt)
+    link_libraries(${LKL_LIB_PATH})
     include_directories(${LKL_INCLUDE_PATH})
     add_definitions(-DUSE_LKL)
 endif()
