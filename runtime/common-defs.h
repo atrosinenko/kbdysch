@@ -17,10 +17,13 @@ union lkl_bpf_attr;
 #define MAX_FILE_NAME_LEN (1 << 16)
 #define MAX_STRING_LEN (1 << 16)
 
+// Put N predefined bytes right after the allocated buffer
+#define WATERMARK_SIZE 32
+
 struct fuzzer_state;
 
 typedef char filename_t[MAX_FILE_NAME_LEN];
 typedef char string_t[MAX_STRING_LEN];
-typedef uint8_t buffer_t[MAX_BUFFER_LEN];
+typedef uint8_t buffer_t[MAX_BUFFER_LEN + WATERMARK_SIZE];
 
 #endif // COMMON_DEFS_H

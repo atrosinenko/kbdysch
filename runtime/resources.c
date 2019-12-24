@@ -10,6 +10,16 @@
 #include <assert.h>
 #include <syscall.h>
 
+static uint8_t reference_watermark[WATERMARK_SIZE];
+
+static void __attribute__((constructor))constr(void)
+{
+  // FF 01 FD 03 ...
+  for (int i = 0; i < WATERMARK_SIZE; ++i) {
+    reference_watermark[i] = (i % 2) ? i : (255 - i);
+  }
+}
+
 int res_should_log_assignments(struct fuzzer_state *state)
 {
   return state->constant_state.log_assigns;
@@ -183,6 +193,7 @@ void res_fill_buffer(struct fuzzer_state *state, const char *name, buffer_t buf,
       // make buffer contents initially identical in case not fully overwritten
       memset(buf, 0, len);
     }
+    memcpy(buf + len, reference_watermark, WATERMARK_SIZE);
     return;
   }
   if (len <= 28) {
@@ -197,7 +208,8 @@ void res_fill_buffer(struct fuzzer_state *state, const char *name, buffer_t buf,
     }
     LOG_ASSIGN("<buffer of size %zu, pseudo-random contents>", len);
   }
-  *length = len;
+  // it is faster to allow overfill and put watermark afterwards
+  memcpy(buf + len, reference_watermark, WATERMARK_SIZE);
 }
 
 static int res_create_file_name(struct fuzzer_state *state)
@@ -332,6 +344,16 @@ void res_process_length(struct fuzzer_state *state, const char *name, uint64_t r
 void res_process_buffer(struct fuzzer_state *state, const char *name, buffer_t refBuf, uint64_t refLength, buffer_t buf, uint64_t length, direction_t dir)
 {
   assert(refLength == length);
+  if (memcmp(buf + length, reference_watermark, WATERMARK_SIZE) != 0) {
+    fprintf(stderr, "Corrupted buffer watermark:\n");
+    fprintf(stderr, "  Name = %s\n", name);
+    fprintf(stderr, "  Buffer size = %zu\n", length);
+    fprintf(stderr, "  Reference: %02x %02x %02x %02x...\n",
+            reference_watermark[0], reference_watermark[1], reference_watermark[2], reference_watermark[3]);
+    fprintf(stderr, "  Actual:    %02x %02x %02x %02x...\n",
+            buf[length], buf[length + 1], buf[length + 2], buf[length + 3]);
+    abort();
+  }
   if (refBuf != buf && memcmp(refBuf, buf, length) != 0) {
     // slow path...
     uint64_t ind;
