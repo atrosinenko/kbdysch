@@ -5,7 +5,7 @@ import java.nio.file.Files
 
 import fastparse.all._
 import fastparse.core.Parsed.{Failure, Success}
-import io.github.atrosinenko.kbdysch.arguments.{ArgDescriptionConstructor, ArrayArg, Buffer, Const, DelFD, Direction, Errno, Fd, FileName, Flags, In, InOut, Inherit, IntegerArg, IntegerRange, Length, Out, Pointer, Ref, Sizeof, StringRes}
+import io.github.atrosinenko.kbdysch.arguments.{ArgDescriptionConstructor, ArrayArg, Buffer, Const, DelFD, Direction, Errno, Fd, FileName, Flags, In, InOut, Inherit, IntegerArg, IntegerRange, Length, Out, Pointer, Ref, Sizeof, StringRes, UnknownArg}
 
 import scala.collection.JavaConverters._
 
@@ -29,7 +29,7 @@ object SyzkallerDescriptionParser {
     }
 
     val ident: Parser[String] = P(((letter | CharIn("_")) ~ (letter | digit | CharIn("_")).rep).!)
-    val someString: Parser[String] = P((letter | digit | CharIn("_\\.")).rep(1).!)
+    val someString: Parser[String] = P((letter | digit | CharIn("_\\.:")).rep(1).!)
 
     val integer: Parser[Int] = P(("-".? ~ digit.rep(1)).!.map(_.toInt))
     val range: Parser[IntegerRange] = P(integer ~ ":" ~ integer).map {
@@ -92,6 +92,8 @@ object SyzkallerDescriptionParser {
         case ("sizeof", Seq(name: String, tpe: ArgDescriptionConstructor)) => Sizeof(name, tpe)
 
         case ("uid" | "gid" | "pid" | "signalno", Seq()) => IntegerArg(32, true)
+
+        case x => UnknownArg(x)
       }
 
     def parseTypeOrRef(obj: Any): ArgDescriptionConstructor = obj match {
@@ -140,7 +142,8 @@ object SyzkallerDescriptionParser {
       case Success(value, _) =>
         Right(new Descriptions(value))
       case Failure(lastParser, index, extra) =>
-        Left(s"Cannot parse: ${extra.toString}")
+        val endIndex = index + 100 min extra.input.length
+        Left(s"Cannot parse: ${extra.input.slice(index, endIndex)}...")
     }
   }
 
