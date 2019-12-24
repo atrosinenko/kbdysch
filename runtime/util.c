@@ -2,6 +2,8 @@
 
 #include "internal-defs.h"
 
+#include <time.h>
+#include <signal.h>
 #include <pth.h>
 
 static void __attribute__((constructor)) constr(void)
@@ -14,6 +16,22 @@ void start_forksrv(void)
 #ifdef __AFL_HAVE_MANUAL_CONTROL
   __AFL_INIT();
 #endif
+
+  // Basically for usage with afl-tmin on hanging inputs
+  int limit = get_int_knob("TIME_LIMIT", -1);
+  if (limit > 0) {
+    struct itimerspec tval;
+    struct sigevent sigev;
+    memset(&tval, 0, sizeof(tval));
+    memset(&sigev, 0, sizeof(sigev));
+    sigev.sigev_notify = SIGEV_SIGNAL;
+    sigev.sigev_signo = SIGKILL;
+    tval.it_value.tv_sec = limit / 1000;
+    tval.it_value.tv_nsec = (limit % 1000) * 1000000;
+    timer_t timer_id;
+    CHECK_THAT(timer_create(CLOCK_MONOTONIC, &sigev, &timer_id) == 0);
+    CHECK_THAT(timer_settime(timer_id, 0, &tval, NULL) == 0);
+  }
 }
 
 struct fuzzer_state *create_state(int argc, const char *argv[])
@@ -52,7 +70,6 @@ const char *get_string_knob(const char *name, const char *default_value)
   const char *str = getenv(name);
   return str ? str : default_value;
 }
-
 
 void show_help_and_exit_if_needed(int argc, const char *argv[], const char *help_message)
 {
