@@ -1,12 +1,8 @@
-language: c
+language: generic
 os: linux
-jobs:
-- language: generic
-  # Just test the validity of Scala sources and invoker descriptions
-  script: ./update_invokers.sh
-- # Use bundled invokers
-  script:
-  - mkdir build
-  - cd build
-  - cmake ../runtime -DUSE_LKL=FALSE
-  - make
+script:
+- ./update_invokers.sh
+- mkdir build
+- cd build
+- cmake ../runtime -DUSE_LKL=FALSE
+- make
