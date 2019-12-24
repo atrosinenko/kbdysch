@@ -28,6 +28,7 @@ static void kernel_dump_all_pertitions_if_requested(struct fuzzer_state *state)
     fprintf(stderr, "Dumping current %s state to %s... ",
             state->partitions[part].fstype, dump_file_name);
 
+    unlink(dump_file_name);
     int dump_fd = open(dump_file_name, O_CREAT | O_WRONLY, S_IRUSR);
     CHECK_THAT(dump_fd >= 0);
     size_t dump_size = state->partitions[part].size;
@@ -146,6 +147,10 @@ static void add_all_disks(struct fuzzer_state *state)
   static struct lkl_dev_blk_ops blk_ops;
   blk_ops.get_capacity = mem_get_capacity;
   blk_ops.request = mem_request;
+
+  if (state->constant_state.diskless) {
+    return;
+  }
 
   for (int i = 0; i < state->constant_state.part_count; ++i)
   {
@@ -462,6 +467,7 @@ int kernel_open_char_dev_by_sysfs_name(struct fuzzer_state *state, const char *n
   CHECK_THAT(sysfs_read_size >= 0);
   str_dev_id[sysfs_read_size] = 0;
   fprintf(stderr, "  sysfs returned: %s\n", str_dev_id);
+  CHECK_THAT(INVOKE_SYSCALL(state, close, sysfs_file_fd) == 0);
 
   // parse string ID
   const char *semicolon = strchr(str_dev_id, ':');

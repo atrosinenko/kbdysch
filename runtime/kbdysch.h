@@ -94,7 +94,7 @@ static inline void check_that_impl(int x, const char *line)
   }
 }
 
-static inline void check_invoker_errno_impl(struct fuzzer_state *state, int err, const char *line)
+static inline void check_invoker_errno_impl(struct fuzzer_state *state, long err, const char *line)
 {
   if (err != 0) {
     fprintf(stderr, "Check failed: %s (%s)\n", line, STRERROR(state, err));
