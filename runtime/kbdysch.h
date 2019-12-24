@@ -80,7 +80,7 @@ void warn_lkl_not_supported(void);
 #define INVOKE_SYSCALL(state, syscall_name, ...) \
     (is_native_invoker(state) ? syscall(SYS_##syscall_name, __VA_ARGS__) : (warn_lkl_not_supported(), 0))
 #define GET_ERRNO(state, returned_value) (is_native_invoker(state) ? errno : (warn_lkl_not_supported(), 0))
-#define STRERROR(state, returned_value)  (is_native_invoker(state) ? strerror(errno) : (warn_lkl_not_supported(), NULL))
+#define STRERROR(state, returned_value)  (is_native_invoker(state) ? strerror(errno) : (warn_lkl_not_supported(), (const char *)NULL))
 #endif
 
 #define CHECK_THAT(x) check_that_impl((x), #x)
