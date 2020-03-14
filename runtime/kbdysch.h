@@ -13,6 +13,8 @@
 #include "lkl.h"
 #endif
 
+#define FSTYPE_RAW "raw: "
+
 /// \defgroup usage_help
 /// @{
 

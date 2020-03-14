@@ -163,11 +163,15 @@ static void unmount_all(struct fuzzer_state *state) {
 
   // perform umount()
   for (int part = 0; part < state->constant_state.part_count; ++part) {
-    int ret = lkl_umount_dev(state->partitions[part].disk_id, 0, 0, 1);
+    partition_t *partition = &state->partitions[part];
+    if (strncmp(partition->fstype, FSTYPE_RAW, strlen(FSTYPE_RAW)) == 0) {
+      continue;
+    }
+    int ret = lkl_umount_dev(partition->disk_id, 0, 0, 1);
     if (ret) {
       // TODO
       fprintf(stderr, "WARN: cannot unmount #%d, type = %s (%s), just exiting...\n",
-              part, state->partitions[part].fstype, lkl_strerror(ret));
+              part, partition->fstype, lkl_strerror(ret));
       exit(1);
     }
   }
@@ -186,27 +190,31 @@ static void mount_all(struct fuzzer_state *state)
 
   for (int part = 0; part < state->constant_state.part_count; ++part)
   {
+    partition_t *partition = &state->partitions[part];
+    if (strncmp(partition->fstype, FSTYPE_RAW, strlen(FSTYPE_RAW)) == 0) {
+      continue;
+    }
     int mount_flags = get_bool_knob("READ_ONLY", 0) ? MS_RDONLY : MS_MGC_VAL;
     const char *mount_options;
 
-    if (strcmp(state->partitions[part].fstype, "ext4") == 0) {
+    if (strcmp(partition->fstype, "ext4") == 0) {
       mount_options = "errors=remount-ro";
     } else {
       mount_options = get_string_knob("MOUNT_OPTIONS", NULL);
     }
 
     int ret = lkl_mount_dev(
-      state->partitions[part].disk_id,
+      partition->disk_id,
       0,
-      state->partitions[part].fstype,
+      partition->fstype,
       mount_flags,
       mount_options,
-      state->partitions[part].mount_point,
+      partition->mount_point,
       MOUNT_POINT_LEN);
 
     if (ret) {
       fprintf(stderr, "Cannot mount partition #%d, type = %s: %s\n",
-              part, state->partitions[part].fstype, lkl_strerror(ret));
+              part, partition->fstype, lkl_strerror(ret));
 
       if (state->mutable_state.patch_was_invoked) {
         fprintf(stderr, "Exiting cleanly because PATCH was invoked previously.\n");
@@ -219,7 +227,7 @@ static void mount_all(struct fuzzer_state *state)
     state->partitions[part].registered_fds_count = 1;
 
     fprintf(stderr, "Successfully mounted partition #%d, type = %s\n",
-            part, state->partitions[part].fstype);
+            part, partition->fstype);
   }
 }
 
