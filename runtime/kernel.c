@@ -421,6 +421,7 @@ void kernel_boot(struct fuzzer_state *state, const char *cmdline)
   lkl_host_ops.panic = abort;
   lkl_start_kernel(&lkl_host_ops, cmdline);
   lkl_mount_fs("sysfs");
+  lkl_mount_fs("proc");
   mount_all(state);
 #endif
 }
