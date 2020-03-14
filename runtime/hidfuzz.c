@@ -18,7 +18,7 @@ int main(int argc, const char *argv[])
         USAGE_RUN_NATIVELY
         USAGE_LKL_SIMPLE);
 
-  struct fuzzer_state *state = create_state(argc, argv);
+  struct fuzzer_state *state = create_state(argc, argv, NULL);
 
   kernel_configure_diskless(state, "/tmp/");
   if (!is_native_invoker(state)) {

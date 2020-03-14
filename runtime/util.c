@@ -11,6 +11,11 @@ static void __attribute__((constructor)) constr(void)
   pth_init();
 }
 
+static void default_stopper_func(struct fuzzer_state *state)
+{
+  longjmp(state->stopper, 1);
+}
+
 void start_forksrv(void)
 {
 #ifdef __AFL_HAVE_MANUAL_CONTROL
@@ -34,10 +39,11 @@ void start_forksrv(void)
   }
 }
 
-struct fuzzer_state *create_state(int argc, const char *argv[])
+struct fuzzer_state *create_state(int argc, const char *argv[], void (*stopper)(void))
 {
   struct fuzzer_state *result = calloc(1, sizeof(*result));
 
+  result->stopper_func = stopper ? stopper : default_stopper_func;
   result->constant_state.log_assigns = !get_bool_knob("NO_LOG", 0);
 
   result->current_state.rng_state = 12345678901L | 1;

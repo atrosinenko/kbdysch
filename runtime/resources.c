@@ -109,8 +109,8 @@ uint64_t res_get_uint(struct fuzzer_state *state, const char *name, size_t size)
   uint64_t result = 0;
   assert(size == 1 || size == 2 || size == 4 || size == 8);
   res_align_next_to(state, size);
-  if (state->saved_state.offset + size > state->constant_state.length) {
-    longjmp(state->stopper, 1);
+  if (state->current_state.offset + size > state->constant_state.length) {
+    state->stopper_func(state);
   }
   memcpy(&result, get_and_consume(state, size), size);
   if (name != NULL) {
@@ -122,7 +122,7 @@ uint64_t res_get_uint(struct fuzzer_state *state, const char *name, size_t size)
 void res_copy_bytes(struct fuzzer_state *state, void *ptr, size_t size)
 {
   if (state->saved_state.offset + size > state->constant_state.length) {
-    longjmp(state->stopper, 1);
+    state->stopper_func(state);
   }
   uint8_t *source_ptr = get_and_consume(state, size);
   memcpy(ptr, source_ptr, size);

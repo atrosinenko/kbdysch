@@ -22,7 +22,7 @@ int main(int argc, const char *argv[])
         USAGE_LKL_SIMPLE
         );
 
-  struct fuzzer_state *state = create_state(argc, argv);
+  struct fuzzer_state *state = create_state(argc, argv, NULL);
   const int bpf_log_level = get_int_knob("BPF_LOG_LEVEL", 0);
 
   if (!is_native_invoker(state)) {

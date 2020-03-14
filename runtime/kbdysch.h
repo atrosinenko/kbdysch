@@ -61,7 +61,7 @@ void start_forksrv(void);
  *
  * @ingroup state_management
  */
-struct fuzzer_state *create_state(int argc, const char *argv[]);
+struct fuzzer_state *create_state(int argc, const char *argv[], void (*stopper)(void));
 
 int is_native_invoker(struct fuzzer_state *state);
 

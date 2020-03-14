@@ -14,7 +14,7 @@ static void check_part_is_clean(struct fuzzer_state *state, int part, const char
 
 int main(int argc, const char *argv[])
 {
-  struct fuzzer_state * const state = create_state(argc, argv);
+  struct fuzzer_state * const state = create_state(argc, argv, NULL);
 
   show_help_and_exit_if_needed(
         argc, argv,
