@@ -19,3 +19,10 @@
 /runtime/generated/
 CMakeLists.txt.user
 /generated-docs
+
+# Build-related stuff
+/build/
+/build-*/
+
+# Misc
+.gdb_history
