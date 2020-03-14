@@ -25,16 +25,7 @@ static void kernel_dump_all_pertitions_if_requested(struct fuzzer_state *state)
     snprintf(dump_file_name, sizeof(dump_file_name), "dump_%s.img",
              state->partitions[part].fstype);
 
-    fprintf(stderr, "Dumping current %s state to %s... ",
-            state->partitions[part].fstype, dump_file_name);
-
-    unlink(dump_file_name);
-    int dump_fd = open(dump_file_name, O_CREAT | O_WRONLY, S_IRUSR);
-    CHECK_THAT(dump_fd >= 0);
-    size_t dump_size = state->partitions[part].size;
-    CHECK_THAT(write(dump_fd, state->partitions[part].data, dump_size) == dump_size);
-    close(dump_fd);
-    fprintf(stderr, "OK\n");
+    dump_to_file(dump_file_name, state->partitions[part].data, state->partitions[part].size);
   }
 }
 

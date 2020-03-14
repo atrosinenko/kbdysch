@@ -2,6 +2,9 @@
 
 #include "internal-defs.h"
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <time.h>
 #include <signal.h>
 #include <pth.h>
@@ -90,4 +93,16 @@ void warn_lkl_not_supported(void)
 {
   fprintf(stderr, "This fuzzer is compiled without LKL support, exiting.\n");
   exit(1);
+}
+
+void dump_to_file(const char *dump_file_name, const void *data, size_t size)
+{
+  fprintf(stderr, "Dumping to %s... ", dump_file_name);
+
+  unlink(dump_file_name);
+  int dump_fd = open(dump_file_name, O_CREAT | O_WRONLY, S_IRUSR);
+  CHECK_THAT(dump_fd >= 0);
+  CHECK_THAT(write(dump_fd, data, size) == size);
+  close(dump_fd);
+  fprintf(stderr, "OK\n");
 }
