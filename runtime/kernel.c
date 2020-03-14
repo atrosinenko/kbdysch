@@ -535,3 +535,50 @@ void kernel_dump_file_names(struct fuzzer_state *state)
     fprintf(stderr, "  %s\n", state->mutable_state.file_names[i]);
   }
 }
+
+#if USE_LKL
+void kernel_mk_char_devices(struct fuzzer_state *state)
+{
+  int err;
+  char tmp_buf[128];
+  char tmp_path[128];
+
+  struct lkl_dir *sysfs_dev_char_dir = lkl_opendir("/sysfs/dev/char", &err);
+  CHECK_THAT(sysfs_dev_char_dir != NULL);
+
+  CHECK_INVOKER_ERRNO(state, lkl_sys_mkdir("/dev/", S_IFDIR | S_IRWXU | S_IRWXG | S_IRWXO) == 0);
+
+  struct lkl_linux_dirent64 *dirent;
+  while ((dirent = lkl_readdir(sysfs_dev_char_dir)) != NULL) {
+    if (dirent->d_name[0] == '.') {
+      continue;
+    }
+
+    int major, minor;
+    parse_device_id(dirent->d_name, &major, &minor);
+
+    snprintf(tmp_path, sizeof(tmp_path), "/sysfs/dev/char/%s/uevent", dirent->d_name);
+    size_t uevent_length = kernel_read_from_file(state, tmp_path, tmp_buf, sizeof(tmp_buf) - 1);
+    tmp_buf[uevent_length] = '\0';
+
+    const char *marker = "DEVNAME=";
+    char *dev_name = strstr(tmp_buf, marker);
+    CHECK_THAT(dev_name != NULL);
+    dev_name += strlen(marker);
+    char *nl = strchr(dev_name, '\n');
+    if (nl) {
+      *nl = '\0';
+    }
+
+    for (int i = 0; dev_name[i]; ++i) {
+      if (dev_name[i] == '/') {
+        dev_name[i] = '_';
+      }
+    }
+
+    snprintf(tmp_path, sizeof(tmp_path), "/dev/%s_%d_%d", dev_name, major, minor);
+    CHECK_INVOKER_ERRNO(state, lkl_sys_mknodat(AT_FDCWD, tmp_path, S_IFCHR | S_IRWXU | S_IRWXG | S_IRWXO, makedev(major, minor)));
+  }
+  lkl_closedir(sysfs_dev_char_dir);
+}
+#endif
