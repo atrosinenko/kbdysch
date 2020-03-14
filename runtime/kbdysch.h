@@ -50,10 +50,13 @@ const char *get_string_knob(const char *name, const char *default_value);
 void kernel_setup_disk(struct fuzzer_state *state, const char *filename, const char *fstype);
 void kernel_configure_diskless(struct fuzzer_state *state, const char *mpoint);
 void kernel_boot(struct fuzzer_state *state, const char *cmdline);
-void kernel_write_to_file(struct fuzzer_state *state, const char *filename, const char *data);
-int kernel_open_char_dev_by_sysfs_name(struct fuzzer_state *state, const char *name, const char *sysfs_id);
+size_t kernel_read_from_file(struct fuzzer_state *state, const char *filename, const void *data, size_t size);
+void kernel_write_to_file(struct fuzzer_state *state, const char *filename, const void *data, size_t size, int write_may_fail);
+void kernel_write_string_to_file(struct fuzzer_state *state, const char *filename, const char *str, int write_may_fail);
+int kernel_open_device_by_sysfs_name(struct fuzzer_state *state, const char *name, const char *sysfs_id, int dev_kind);
 int kernel_scan_for_files(struct fuzzer_state *state, int part);
 void kernel_dump_file_names(struct fuzzer_state *state);
+void kernel_mk_char_devices(struct fuzzer_state *state);
 void dump_to_file(const char *dump_file_name, const void *data, size_t size);
 void start_forksrv(void);
 

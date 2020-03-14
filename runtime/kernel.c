@@ -425,21 +425,47 @@ void kernel_boot(struct fuzzer_state *state, const char *cmdline)
 #endif
 }
 
-void kernel_write_to_file(struct fuzzer_state *state, const char *filename, const char *data)
+size_t kernel_read_from_file(struct fuzzer_state *state, const char *filename, const void *data, size_t size)
+{
+  int fd = INVOKE_SYSCALL(state, openat, AT_FDCWD, (long)filename, O_RDONLY, 0);
+  CHECK_THAT(fd >= 0);
+  ssize_t res = INVOKE_SYSCALL(state, read, fd, (long)data, (long)size);
+  CHECK_THAT(res >= 0);
+  INVOKE_SYSCALL(state, close, fd);
+  return (size_t) res;
+}
+
+void kernel_write_to_file(struct fuzzer_state *state, const char *filename, const void *data, size_t size, int write_may_fail)
 {
   fprintf(stderr, "Writing [%s] to %s... ", data, filename);
   int len = strlen(data);
   int fd = INVOKE_SYSCALL(state, openat, AT_FDCWD, (long)filename, O_WRONLY, 0);
   CHECK_THAT(fd >= 0);
-  CHECK_THAT(INVOKE_SYSCALL(state, write, fd, (long)data, len) == len);
+  CHECK_THAT(INVOKE_SYSCALL(state, write, fd, (long)data, len) == len || write_may_fail);
   INVOKE_SYSCALL(state, close, fd);
   fprintf(stderr, "OK\n");
 }
 
-int kernel_open_char_dev_by_sysfs_name(struct fuzzer_state *state, const char *name, const char *sysfs_id)
+void kernel_write_string_to_file(struct fuzzer_state *state, const char *filename, const char *str, int write_may_fail)
+{
+  kernel_write_to_file(state, filename, str, strlen(str), write_may_fail);
+}
+
+static void parse_device_id(const char *device_id_str, int *major, int *minor)
+{
+  const char *semicolon = strchr(device_id_str, ':');
+  CHECK_THAT(semicolon != NULL);
+  *major = atoi(device_id_str);
+  *minor = atoi(semicolon + 1);
+}
+
+int kernel_open_device_by_sysfs_name(struct fuzzer_state *state, const char *name, const char *sysfs_id, int dev_kind)
 {
   char sysfs_name[128];
   char dev_name[128];
+  char device_id_str[32];
+  int major, minor;
+
   if (is_native_invoker(state)) {
     sprintf(sysfs_name, "/sys/%s/dev", sysfs_id);
     sprintf(dev_name, "/tmp/%s", name);
@@ -448,28 +474,20 @@ int kernel_open_char_dev_by_sysfs_name(struct fuzzer_state *state, const char *n
     sprintf(dev_name, "/%s", name);
   }
 
-  char str_dev_id[32];
   fprintf(stderr, "Opening the device %s as %s...\n", sysfs_name, dev_name);
 
   // read device ID as string
-  int sysfs_file_fd = INVOKE_SYSCALL(state, openat, AT_FDCWD, (long)sysfs_name, O_RDONLY);
-  CHECK_THAT(sysfs_file_fd >= 0);
-  int sysfs_read_size = INVOKE_SYSCALL(state, read, sysfs_file_fd, (long)str_dev_id, sizeof(str_dev_id) - 1);
-  CHECK_THAT(sysfs_read_size >= 0);
-  str_dev_id[sysfs_read_size] = 0;
-  fprintf(stderr, "  sysfs returned: %s\n", str_dev_id);
-  CHECK_THAT(INVOKE_SYSCALL(state, close, sysfs_file_fd) == 0);
+  size_t sysfs_read_size = kernel_read_from_file(state, sysfs_name, device_id_str, sizeof(device_id_str) - 1);
+  device_id_str[sysfs_read_size] = 0;
+  fprintf(stderr, "  sysfs returned: %s\n", device_id_str);
 
   // parse string ID
-  const char *semicolon = strchr(str_dev_id, ':');
-  CHECK_THAT(semicolon != NULL);
-  int major = atoi(str_dev_id);
-  int minor = atoi(semicolon + 1);
+  parse_device_id(device_id_str, &major, &minor);
   fprintf(stderr, "  parsed as: major = %d, minor = %d\n", major, minor);
 
   // crete device file
   dev_t dev = makedev(major, minor);
-  int mknod_result = INVOKE_SYSCALL(state, mknodat, AT_FDCWD, (long)dev_name, S_IFCHR | S_IRUSR | S_IWUSR, dev);
+  int mknod_result = INVOKE_SYSCALL(state, mknodat, AT_FDCWD, (long)dev_name, dev_kind | S_IRUSR | S_IWUSR, dev);
   CHECK_INVOKER_ERRNO(state, mknod_result);
   fprintf(stderr, "  created device file: %s\n", dev_name);
 

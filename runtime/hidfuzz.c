@@ -24,7 +24,7 @@ int main(int argc, const char *argv[])
   if (!is_native_invoker(state)) {
     kernel_boot(state, argv[1]);
   }
-  int uhid_fd   = kernel_open_char_dev_by_sysfs_name(state, "uhid",   "devices/virtual/misc/uhid");
+  int uhid_fd = kernel_open_device_by_sysfs_name(state, "uhid", "devices/virtual/misc/uhid", S_IFCHR);
 
   pth_yield(NULL);
 
