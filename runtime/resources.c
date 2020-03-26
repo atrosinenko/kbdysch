@@ -241,7 +241,7 @@ void res_fill_buffer(struct fuzzer_state *state, const char *name, buffer_t buf,
     len %= 512;
     len %= MAX_BUFFER_LEN;
     // fill with pseudo-random contents
-    for (uint i = 0; i < len; i += 4) {
+    for (uint i = 0; i < compiler_length_value(len); i += 4) {
       uint64_t rnd = res_rand(state); // use 4 least significant bytes
       *(uint32_t *)(buf + i) = rnd & 0xffffffff;
     }
@@ -285,11 +285,11 @@ static int res_create_file_name(struct fuzzer_state *state)
     // fill with pseudo-random contents
     component_length %= MAX_FILE_NAME_LEN;
     if (get_bool_knob("SIMPLE_NAMES", 0)) {
-      for (uint i = 0; i < component_length; ++i) {
+      for (uint i = 0; i < compiler_length_value(component_length); ++i) {
         tmp_buf[i] = '0' + (i % 10);
       }
     } else {
-      for (uint i = 0; i < component_length + 4; i += 4) {
+      for (uint i = 0; i < compiler_length_value(component_length) + 4; i += 4) {
         uint64_t rnd = res_rand(state); // use 4 least significant bytes
         *(uint32_t *)(tmp_buf + i) = rnd & 0xffffffff;
       }
