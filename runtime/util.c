@@ -54,7 +54,7 @@ struct fuzzer_state *create_state(int argc, const char *argv[], void (*stopper)(
 
   result->constant_state.native_mode = argc == 2 && (strcmp(argv[1], "native") == 0);
   result->mutable_state.file_names[0] = "";
-  result->mutable_state.file_name_count = 1;
+  result->current_state.file_name_count = 1;
 
   return result;
 }

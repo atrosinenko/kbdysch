@@ -27,8 +27,7 @@ static const char *BAD_WORDS[] = {
   "call trace"
 };
 
-#define MAX_FILE_NAME_COUNT 128
-#define MAX_FILE_NAME_REPLAYED 1024
+#define MAX_FILE_NAME_COUNT (1 << 16)
 #define MAX_REGISTERED_FDS 1024
 
 #define MOUNT_POINT_LEN 128
@@ -70,9 +69,6 @@ typedef struct {
  */
 typedef struct {
   const char *file_names[MAX_FILE_NAME_COUNT]; ///< File names relative to the FS root
-  int file_name_count; ///< Count of file names initialized so far
-  int file_name_indexes_for_replay[MAX_FILE_NAME_REPLAYED]; ///< Recorder for 0-th pertition, replayed for others
-  int file_name_current_index; ///< Index of current element of `file_name_indexes_for_replay`
 
   int patch_was_invoked; ///< PATCH operation was already invoked during this run
 
@@ -86,6 +82,7 @@ typedef struct {
  * @warning Should be `memcpy`-copyable!
  */
 typedef struct {
+  int file_name_count; ///< Count of file names initialized so far
   uint64_t offset;    ///< Current offset inside the testcase
   uint64_t rng_state; ///< Current state of RNG
 } saveable_state_t;

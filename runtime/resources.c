@@ -61,7 +61,6 @@ void res_restore_state(struct fuzzer_state *state, int for_partiton)
 {
   memcpy(&state->current_state, &state->saved_state, sizeof(saveable_state_t));
   state->mutable_state.current_part = for_partiton;
-  state->mutable_state.file_name_current_index = 0;
 }
 
 static uint64_t res_rand(struct fuzzer_state *state)
@@ -214,14 +213,21 @@ void res_fill_buffer(struct fuzzer_state *state, const char *name, buffer_t buf,
 
 static int res_create_file_name(struct fuzzer_state *state)
 {
-  static char tmp_buf[MAX_FILE_NAME_LEN + 128];
-  uint64_t chain_to = res_get_u16(state) % state->mutable_state.file_name_count;
-  uint16_t component_length = res_get_u16(state);
+  static int no_new_files = -1;
+  static char __attribute__((aligned(4))) tmp_buf[MAX_FILE_NAME_LEN + 128];
+  uint64_t chain_to = res_get_u16(state) % state->current_state.file_name_count;
+  int16_t component_length = res_get_u16(state);
 
-  if (component_length == 0xffff) {
+  if (no_new_files == -1) {
+    no_new_files = get_bool_knob("NO_NEW_FILES", 0);
+  }
+
+  if (no_new_files || component_length < 0) {
     // reuse existing file name
     return (int)chain_to;
   }
+
+  component_length %= 512;
 
   // create new path component
   if (component_length < 28) {
@@ -237,38 +243,37 @@ static int res_create_file_name(struct fuzzer_state *state)
   } else {
     // fill with pseudo-random contents
     component_length %= MAX_FILE_NAME_LEN;
-    for (uint i = 0; i < component_length + 4; i += 4) {
-      uint64_t rnd = res_rand(state); // use 4 least significant bytes
-      memcpy(tmp_buf + i, &rnd, 4); // little-endian
+    if (get_bool_knob("SIMPLE_NAMES", 0)) {
+      for (uint i = 0; i < component_length; ++i) {
+        tmp_buf[i] = '0' + (i % 10);
+      }
+    } else {
+      for (uint i = 0; i < component_length + 4; i += 4) {
+        uint64_t rnd = res_rand(state); // use 4 least significant bytes
+        *(uint32_t *)(tmp_buf + i) = rnd & 0xffffffff;
+      }
     }
   }
   tmp_buf[component_length] = '\0';
 
   // attach the newly created component to the selected existing one
   char *new_name =  malloc(MAX_FILE_NAME_LEN);
-  int new_index = state->mutable_state.file_name_count;
+  int new_index = state->current_state.file_name_count;
+  free(state->mutable_state.file_names[new_index]);
   state->mutable_state.file_names[new_index] = new_name;
-  state->mutable_state.file_name_count += 1;
+  state->current_state.file_name_count += 1;
   snprintf(new_name, MAX_FILE_NAME_LEN, "%s/%s", state->mutable_state.file_names[chain_to], tmp_buf);
   return new_index;
 }
 
 void res_fill_file_name(struct fuzzer_state *state, const char *name, char *value)
 {
-  int index_for_result;
-  if (state->mutable_state.current_part == 0) {
-    // record index
-    index_for_result = res_create_file_name(state);
-    state->mutable_state.file_name_indexes_for_replay[state->mutable_state.file_name_current_index++] = index_for_result;
-  } else {
-    // replay index
-    index_for_result = state->mutable_state.file_name_indexes_for_replay[state->mutable_state.file_name_current_index++];
-  }
+  int index_for_result = res_create_file_name(state);
   snprintf(value, MAX_FILE_NAME_LEN, "%s/%s",
       state->partitions[state->mutable_state.current_part].mount_point,
       state->mutable_state.file_names[index_for_result]
   );
-  LOG_ASSIGN("%s", value);
+  LOG_ASSIGN("%s (index %d)", value, index_for_result);
 }
 
 int res_get_fd(struct fuzzer_state *state, const char *name)

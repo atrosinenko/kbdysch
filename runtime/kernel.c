@@ -517,7 +517,7 @@ int kernel_scan_for_files(struct fuzzer_state *state, int part)
     exit(1);
   }
 
-  const int old_file_count = state->mutable_state.file_name_count;
+  const int old_file_count = state->current_state.file_name_count;
 
 #ifdef USE_LKL
 
@@ -534,12 +534,12 @@ int kernel_scan_for_files(struct fuzzer_state *state, int part)
 
 #endif
 
-  return state->mutable_state.file_name_count - old_file_count;
+  return state->current_state.file_name_count - old_file_count;
 }
 
 void kernel_dump_file_names(struct fuzzer_state *state)
 {
-  for (int i = 0; i < state->mutable_state.file_name_count; ++i) {
+  for (int i = 0; i < state->current_state.file_name_count; ++i) {
     fprintf(stderr, "  %s\n", state->mutable_state.file_names[i]);
   }
 }
