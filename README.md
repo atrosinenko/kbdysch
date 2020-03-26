@@ -10,6 +10,7 @@ _Currently_, kBdysch is capable of testing the following aspects of the kernel:
   * use one file system implementation as a model for testing some other one. _Just like proposed in AFL documentation but for the entire FS driver..._
 * eBPF verifier
 * HID subsystem via `uhid` emulated device
+* partition table parsers
 
 ## Design
 

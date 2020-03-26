@@ -31,3 +31,4 @@ endif()
 
 add_executable(bpffuzz bpffuzz.c $<TARGET_OBJECTS:common_lib>)
 add_executable(hidfuzz hidfuzz.c $<TARGET_OBJECTS:common_lib>)
+add_executable(partfuzz partfuzz.c $<TARGET_OBJECTS:common_lib>)
