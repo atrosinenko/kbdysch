@@ -9,6 +9,7 @@
 #include <sys/mman.h>
 #include <sys/sysmacros.h>
 #include <syscall.h>
+#include <ctype.h>
 
 #ifdef USE_LKL
 
@@ -465,6 +466,69 @@ void kernel_write_to_file(struct fuzzer_state *state, const char *filename, cons
 void kernel_write_string_to_file(struct fuzzer_state *state, const char *filename, const char *str, int write_may_fail)
 {
   kernel_write_to_file(state, filename, str, strlen(str), write_may_fail);
+}
+
+void kernel_invoke_write_to_file(struct fuzzer_state *state)
+{
+#define OUTBUF_LEN 80
+#define INBUF_LEN (OUTBUF_LEN * 4)
+  const int file_index = res_get_u32(state) % state->current_state.file_name_count;
+  const char * const file_name = state->mutable_state.file_names[file_index];
+  static char path_name[1024];
+  static char iobuf[INBUF_LEN + 1];
+  static int break_indexes[INBUF_LEN + 2];
+  int outlen;
+  int fd;
+
+  if (!strncmp(file_name, "./vm", 4) || !strcmp(file_name, "./kernel/threads-max")) {
+    return;
+  }
+  sprintf(path_name, "%s/%s", state->partitions[0].mount_point, file_name);
+
+  int selector = res_get_u8(state) & 3;
+  int do_write_number = selector == 0;
+  int do_write_word = selector == 1;
+
+  fprintf(stderr, "Opening %s...\n", path_name);
+  fd = INVOKE_SYSCALL(state, openat, AT_FDCWD, (long)path_name, do_write_word ? O_RDWR : O_WRONLY, 0);
+  if (fd < 0) {
+    fprintf(stderr, "  FAIL\n");
+    return;
+  } else {
+    fprintf(stderr, "  FD = %d\n", fd);
+  }
+
+  if (do_write_number) {
+    outlen = sprintf(iobuf, "%d", (int32_t)res_get_u32(state));
+  } else if (do_write_word) {
+    int inlen = INVOKE_SYSCALL(state, read, fd, iobuf, INBUF_LEN);
+    while (inlen > 0 && !isalnum(iobuf[inlen - 1])) {
+      inlen -= 1;
+    }
+    iobuf[inlen] = '\0';
+    fprintf(stderr, "  Read [%s].\n", iobuf);
+
+    int break_count = 0;
+    break_indexes[break_count++] = -1;
+    for (int i = 0; i < inlen; ++i) {
+      if (!isalnum(iobuf[i])) {
+        break_indexes[break_count++] = i;
+      }
+    }
+    break_indexes[break_count] = inlen;
+
+    int word_index = res_get_u8(state) % break_count;
+    outlen = break_indexes[word_index + 1] - (break_indexes[word_index] + 1);
+    memmove(iobuf, iobuf + (break_indexes[word_index] + 1), outlen);
+  } else {
+    outlen = res_get_u8(state) % OUTBUF_LEN;
+    res_copy_bytes(state, iobuf, outlen);
+  }
+  iobuf[outlen] = '\0';
+  fprintf(stderr, "  Writing [%s]...\n", iobuf);
+
+  INVOKE_SYSCALL(state, write, fd, (long)iobuf, outlen);
+  INVOKE_SYSCALL(state, close, fd);
 }
 
 static void parse_device_id(const char *device_id_str, int *major, int *minor)
