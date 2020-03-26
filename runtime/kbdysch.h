@@ -2,6 +2,7 @@
 #define KBDYSCH_H
 
 #include "common-defs.h"
+#include "compiler.h"
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -71,12 +72,19 @@ struct fuzzer_state *create_state(int argc, const char *argv[], void (*stopper)(
 
 int is_native_invoker(struct fuzzer_state *state);
 
+static inline long lkl_exit_wrapper(long result)
+{
+  compiler_exit_lkl();
+  return result;
+}
 
 #ifdef USE_LKL
 #define INVOKE_SYSCALL_0(state, syscall_name) \
-    (is_native_invoker(state)) ? syscall(SYS_##syscall_name) : lkl_syscall(__lkl__NR_##syscall_name, (long[]){0, 0, 0, 0, 0, 0 /* ensure >=6 dereferenceable elements */})
+    (compiler_enter_lkl(), \
+    lkl_exit_wrapper((is_native_invoker(state)) ? syscall(SYS_##syscall_name) : lkl_syscall(__lkl__NR_##syscall_name, (long[]){0, 0, 0, 0, 0, 0 /* ensure >=6 dereferenceable elements */})))
 #define INVOKE_SYSCALL(state, syscall_name, ...) \
-    (is_native_invoker(state) ? syscall(SYS_##syscall_name, __VA_ARGS__) : lkl_syscall(__lkl__NR_##syscall_name, (long[]){__VA_ARGS__, 0, 0, 0, 0, 0, 0 /* ensure >=6 dereferenceable elements */}))
+    (compiler_enter_lkl(), \
+    lkl_exit_wrapper((is_native_invoker(state) ? syscall(SYS_##syscall_name, __VA_ARGS__) : lkl_syscall(__lkl__NR_##syscall_name, (long[]){__VA_ARGS__, 0, 0, 0, 0, 0, 0 /* ensure >=6 dereferenceable elements */}))))
 #define GET_ERRNO(state, returned_value_if_lkl) (is_native_invoker(state) ? errno : (returned_value_if_lkl))
 #define STRERROR(state, returned_value_if_lkl)  (is_native_invoker(state) ? strerror(errno) : lkl_strerror(returned_value_if_lkl))
 #else

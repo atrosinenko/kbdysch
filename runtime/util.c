@@ -12,6 +12,7 @@
 static void __attribute__((constructor)) constr(void)
 {
   pth_init();
+  compiler_initialize();
 }
 
 static void default_stopper_func(struct fuzzer_state *state)
