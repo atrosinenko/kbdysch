@@ -246,10 +246,12 @@ static void patch_one(struct fuzzer_state *state, partition_t *partition)
 
   const int32_t param2 = res_get_u32(state);
   const int patch_local_offset = (param2 > 0) ? (param2 % patch_local_range) : (param2 % patch_local_range + patch_local_range);
-  void *patch_destination = partition->data + partition->off_start[access_nr] + patch_local_offset;
+  size_t partition_offset = partition->off_start[access_nr] + patch_local_offset;
+  void *patch_destination = partition->data + partition_offset;
 
-  uint64_t patched_data;
-  memcpy(&patched_data, patch_destination, patch_size);
+  uint64_t original_data, patched_data;
+  memcpy(&original_data, patch_destination, patch_size);
+  patched_data = original_data;
 
   switch(op & 0x07) {
   case 0:
@@ -272,6 +274,11 @@ static void patch_one(struct fuzzer_state *state, partition_t *partition)
     break;
   }
   memcpy(patch_destination, &patched_data, patch_size);
+
+  fprintf(stderr, "Patching at 0x%zx, size = %d: 0x%lx -> 0x%lx (op = 0x%02x, arg = 0x%x)\n",
+          partition_offset, patch_size,
+          original_data, patched_data,
+          op & 0xff, arg);
 }
 
 static void my_printk(const char *msg, int len)
