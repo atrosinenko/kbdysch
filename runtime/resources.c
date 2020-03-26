@@ -215,29 +215,39 @@ void res_fill_string(struct fuzzer_state *state, const char *name, char *value)
 
 void res_fill_buffer(struct fuzzer_state *state, const char *name, buffer_t buf, uint64_t *length, direction_t dir)
 {
-  size_t len = res_get_u32(state) % MAX_BUFFER_LEN;
-  *length = len;
+  int32_t len = res_get_u32(state);
   if (dir == OUT) {
+    len &= 511; // makes len >= 0
     // fastpath
     if (state->constant_state.part_count > 1) {
       // make buffer contents initially identical in case not fully overwritten
       memset(buf, 0, len);
     }
+    *length = len;
     memcpy(buf + len, reference_watermark, WATERMARK_SIZE);
     return;
   }
-  if (len <= 28) {
-    // read string as-is if consuming <= 32 bytes in total
+
+  assert((uintptr_t)buf % 4 == 0);
+  if (len < 0) {
+    _Static_assert(MAX_STRING_LEN <= MAX_BUFFER_LEN, "MAX_STRING_LEN <= MAX_BUFFER_LEN");
+    res_fill_string(state, name, buf);
+    len = strlen(buf) + 1;
+  } else if (len <= 28) {
+    // read data as-is if consuming <= 32 bytes in total
     res_copy_bytes(state, buf, len);
-    LOG_ASSIGN("<buffer of size %zu, verbatim contents>", len);
+    LOG_ASSIGN("<buffer of size %d, verbatim contents>", len);
   } else {
+    len %= 512;
+    len %= MAX_BUFFER_LEN;
     // fill with pseudo-random contents
     for (uint i = 0; i < len; i += 4) {
       uint64_t rnd = res_rand(state); // use 4 least significant bytes
-      memcpy(buf + i, &rnd, 4);
+      *(uint32_t *)(buf + i) = rnd & 0xffffffff;
     }
-    LOG_ASSIGN("<buffer of size %zu, pseudo-random contents>", len);
+    LOG_ASSIGN("<buffer of size %d, pseudo-random contents>", len);
   }
+  *length = len;
   // it is faster to allow overfill and put watermark afterwards
   memcpy(buf + len, reference_watermark, WATERMARK_SIZE);
 }
