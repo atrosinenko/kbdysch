@@ -155,30 +155,61 @@ size_t res_decide_array_size(struct fuzzer_state *state, const char *name, size_
   return result;
 }
 
+static uint32_t res_compute_hash(const uint8_t *data, size_t length)
+{
+  uint32_t result = 0;
+  for (unsigned i = 0; i < length; ++i) {
+    result = result * 17239u + data[i] * 17u;
+  }
+  return result;
+}
+
+void res_add_to_known_strings(struct fuzzer_state *state, const char *string)
+{
+  size_t length = strlen(string);
+  uint32_t hash = res_compute_hash(string, length);
+
+  for (int i = 0; i < state->mutable_state.string_count; ++i) {
+    if (state->mutable_state.string_hash[i] == hash) {
+      return;
+    }
+  }
+
+  int index = state->mutable_state.string_count++;
+  state->mutable_state.strings[index] = strdup(string);
+  state->mutable_state.string_hash[index] = hash;
+  state->mutable_state.string_length[index] = length;
+}
+
 void res_fill_string(struct fuzzer_state *state, const char *name, char *value)
 {
-  static const char *known_strings[] = {"test", "system.", "trusted.", "security.", "user.", "btrfs.", "osx.", "os2."};
-  uint16_t length = res_get_u16(state);
-  if (length == 0xffff) {
-    // known string, as-is
-    uint16_t sel = res_get_u16(state);
-    sel %= sizeof(known_strings) / sizeof(known_strings[0]);
-    strcpy(value, known_strings[sel]);
-    LOG_ASSIGN("\"%s\" (known string)", value);
+  int16_t length = (int16_t) res_get_u16(state);
+  if (length < 0) {
+    // known string prefix
+    int known_index = -length % state->mutable_state.string_count;
+    int immediate_length = res_get_u8(state) % 32;
+    strcpy(value, state->mutable_state.strings[known_index]);
+    int known_length = state->mutable_state.string_length[known_index];
+    if (known_length > MAX_STRING_LEN - immediate_length - 1)
+      known_length = MAX_STRING_LEN - immediate_length - 1;
+    char *immediate_string = value + known_length;
+    res_copy_bytes(state, immediate_string, immediate_length);
+    immediate_string[immediate_length] = '\0';
+    res_add_to_known_strings(state, value);
+    LOG_ASSIGN("\"%s\" (known prefix)", value);
   } else if (length <= 30) {
     // read string as-is if consuming <= 32 bytes in total
     res_copy_bytes(state, value, length);
-    value[length + 1] = 0;
+    value[length] = '\0';
     LOG_ASSIGN("\"%s\" (verbatim)", value);
   } else {
-    // fill with pseudo-random contents
+    length %= 512;
     length %= (MAX_STRING_LEN - 1);
-    for (uint i = 0; i < length; i += 4) {
-      uint64_t rnd = res_rand(state); // use 4 least significant bytes
-      memcpy(value + i * 4, &rnd, 4);
+    for (int i = 0; i < length; ++i) {
+      value[i] = 'a' + (i % 26);
     }
-    value[length + 1] = 0;
-    LOG_ASSIGN("<pseudo-random string of length <= %d>", length);
+    value[length] = '\0';
+    LOG_ASSIGN("<pattern string of length %d>", length);
   }
 }
 

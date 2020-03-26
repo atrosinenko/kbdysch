@@ -50,6 +50,8 @@ const char *get_string_knob(const char *name, const char *default_value);
 
 /// @}
 
+void res_add_to_known_strings(struct fuzzer_state *state, const char *string);
+
 void kernel_setup_disk(struct fuzzer_state *state, const char *filename, const char *fstype);
 void kernel_configure_diskless(struct fuzzer_state *state, const char *mpoint);
 void kernel_boot(struct fuzzer_state *state, const char *cmdline);

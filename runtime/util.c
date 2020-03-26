@@ -43,6 +43,8 @@ void start_forksrv(void)
   }
 }
 
+static const char *known_strings[] = { "" /* empty */ };
+
 struct fuzzer_state *create_state(int argc, const char *argv[], void (*stopper)(void))
 {
   struct fuzzer_state *result = calloc(1, sizeof(*result));
@@ -55,6 +57,10 @@ struct fuzzer_state *create_state(int argc, const char *argv[], void (*stopper)(
   result->constant_state.native_mode = argc == 2 && (strcmp(argv[1], "native") == 0);
   result->mutable_state.file_names[0] = "";
   result->current_state.file_name_count = 1;
+
+  for (int i = 0; i < sizeof(known_strings) / sizeof(known_strings[0]); ++i) {
+    res_add_to_known_strings(result, known_strings[i]);
+  }
 
   return result;
 }

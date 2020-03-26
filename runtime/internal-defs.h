@@ -29,6 +29,7 @@ static const char *BAD_WORDS[] = {
 
 #define MAX_FILE_NAME_COUNT (1 << 16)
 #define MAX_REGISTERED_FDS 1024
+#define MAX_STRING_COUNT (1 << 16)
 
 #define MOUNT_POINT_LEN 128
 #define ACCESS_HISTORY_LEN 1024
@@ -69,6 +70,11 @@ typedef struct {
  */
 typedef struct {
   const char *file_names[MAX_FILE_NAME_COUNT]; ///< File names relative to the FS root
+
+  const char *strings[MAX_STRING_COUNT]; ///< Known strings
+  uint32_t string_hash[MAX_STRING_COUNT]; ///< Some non-cryptographic hashes of these strings
+  uint32_t string_length[MAX_STRING_COUNT]; ///< Lengths of these strings
+  int string_count; ///< Count of known strings
 
   int patch_was_invoked; ///< PATCH operation was already invoked during this run
 
