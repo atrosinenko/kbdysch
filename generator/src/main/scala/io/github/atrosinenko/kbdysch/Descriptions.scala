@@ -10,7 +10,7 @@ object Descriptions {
   final case class AnnotatedArgConstructor(name: String, tpe: ArgDescriptionConstructor, assertions: Seq[Assertion]) {
     def instantiate(descriptions: Descriptions, ctx: GenContext): AnnotatedArg = AnnotatedArg(
       name,
-      tpe.instantiate(descriptions, ctx),
+      ctx.createWith(thisCtx =>tpe.instantiate(descriptions, thisCtx)),
       assertions
     )
   }

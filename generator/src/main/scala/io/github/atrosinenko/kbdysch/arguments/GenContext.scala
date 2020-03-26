@@ -21,6 +21,7 @@ object GenContext {
         realName = Some(argName),
         name = argName,
         baseStruct = None,
+        indexDepth = 0,
         subscripts = Nil,
         forComparison = oldCtx.forComparison,
         parentCtx = Some(oldCtx)
@@ -36,6 +37,7 @@ object GenContext {
         realName = Some(memberName),
         name = memberName,
         baseStruct = Some(oldCtx),
+        indexDepth = oldCtx.indexDepth,
         subscripts = Nil,
         forComparison = oldCtx.forComparison,
         parentCtx = Some(oldCtx)
@@ -45,15 +47,19 @@ object GenContext {
     }
   }
   private final case class SpawnIndexed(sub: Subscript) extends Spawn {
-    override def applyTo(oldCtx: GenContext): GenContext = new GenContext(
-      description= s"${oldCtx.description} / index level: ${oldCtx.indexDepth}",
-      realName = None,
-      name = s"${oldCtx.name}",
-      baseStruct = None,
-      subscripts = oldCtx.subscripts :+ sub,
-      forComparison = oldCtx.forComparison,
-      parentCtx = Some(oldCtx),
-    )
+    override def applyTo(oldCtx: GenContext): GenContext = {
+      println(s"${oldCtx.subscripts} -> $sub")
+      new GenContext(
+        description= s"${oldCtx.description} / index level: ${oldCtx.indexDepth}",
+        realName = None,
+        name = s"${oldCtx.name}",
+        baseStruct = None,
+        indexDepth = oldCtx.indexDepth + 1,
+        subscripts = oldCtx.subscripts :+ sub,
+        forComparison = oldCtx.forComparison,
+        parentCtx = Some(oldCtx),
+      )
+    }
   }
   private final case class SpawnAux(suffix: String) extends Spawn {
     override def applyTo(oldCtx: GenContext): GenContext = new GenContext(
@@ -61,6 +67,7 @@ object GenContext {
       realName = None,
       name = s"${oldCtx.deepName}__$suffix",
       baseStruct = None,
+      indexDepth = oldCtx.indexDepth,
       subscripts = oldCtx.deepSubscripts,
       forComparison = oldCtx.forComparison,
       parentCtx = Some(oldCtx.argRoot),
@@ -75,6 +82,7 @@ class GenContext private(
   private val realName: Option[String],
   private val name: String,
   private val baseStruct: Option[GenContext],
+  private val indexDepth: Int,
   private val subscripts: Seq[Subscript],
   private val forComparison: Boolean,
   private val parentCtx: Option[GenContext],
@@ -82,7 +90,7 @@ class GenContext private(
   import GenContext._
 
   def this(syscallName: String) = {
-    this(syscallName, None, "", None, Nil, true, None)
+    this(syscallName, None, "", None, 0, Nil, true, None)
   }
 
   private var _direction: Direction = Inherit
@@ -133,7 +141,6 @@ class GenContext private(
     _direction
   }
 
-  def indexDepth: Int = subscripts.length
   def indexesWith: String = s"ind_$indexDepth"
 
   def deepBaseStruct: Option[GenContext] = baseStruct.orElse(parentCtx.flatMap(_.deepBaseStruct))
@@ -164,7 +171,10 @@ class GenContext private(
     val resultOption = parentCtx.get.children.find { neighbor =>
       neighbor.realName.contains(name)
     }
+
     if (resultOption.isEmpty) {
+      println(name)
+      return parentCtx.get.findNeighbor(name)
       println(s"Error: Cannot find $name in ${parentCtx.get._ownArg.varName} at $description")
       println(s"Error: Existing names: ${parentCtx.get.children.filter(_.realName.nonEmpty).map(child => child.realName.get).mkString(", ")}.")
       System.exit(1)
