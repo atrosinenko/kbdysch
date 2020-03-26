@@ -47,4 +47,9 @@ struct pipefd {
     int wfd;
 };
 
+struct my_sockaddr_storage {
+  uint16_t sa_family;
+  uint8_t sa_data[126];
+};
+
 #endif // API_DEFS_H
