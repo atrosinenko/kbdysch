@@ -71,6 +71,8 @@ To use the bundled invoker, just run the `build.sh` script.
 
 In case you would want to modify the syscall descriptions, use `update_invokers.sh` script. You need Java installed in this case (and it will download all other Scala-related stuff on itself).
 
+See [troubleshooting.md](docs/troubleshooting.md) if something goes wrong.
+
 ## Bugs
 
 Technically, **this** fuzzer has not found anything yet at the time of writing this README, since it is
