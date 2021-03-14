@@ -336,7 +336,7 @@ static void recurse_into_directory(struct fuzzer_state *state, int part, struct 
 
     // temporarily adding new path component
     snprintf(file_scanner_tmp_buf + old_len, sizeof(file_scanner_tmp_buf) - old_len, "/%s", dirent->d_name);
-    state->mutable_state.file_names[state->mutable_state.file_name_count++] = strdup(file_scanner_tmp_buf);
+    state->mutable_state.file_names[state->current_state.file_name_count++] = strdup(file_scanner_tmp_buf);
     inode_stack[inode_stack_size++] = dirent->d_ino;
 
     // is this a directory itself?
