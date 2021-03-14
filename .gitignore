@@ -23,6 +23,9 @@ CMakeLists.txt.user
 # Build-related stuff
 /build/
 /build-*/
+/build.*/
+/liblkl.so
+/lkl-include
 
 # Misc
 .gdb_history
