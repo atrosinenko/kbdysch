@@ -7,6 +7,7 @@
 #define __LKL__LINUX_BPF_H__
 union lkl_bpf_attr;
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <memory.h>
 
