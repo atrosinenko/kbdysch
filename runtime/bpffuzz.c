@@ -128,23 +128,14 @@ int main(int argc, const char *argv[])
 
   struct fuzzer_state *state = create_state(argc, argv, NULL);
   const int bpf_log_level = get_int_knob("BPF_LOG_LEVEL", 0);
+  const bool as_root = get_bool_knob("AS_ROOT", 0);
 
   if (!is_native_invoker(state)) {
     kernel_boot(state, argv[1]);
   }
 
-  union bpf_attr attr;
-  memset(&attr, 0, sizeof(attr));
-
-  attr.prog_type = BPF_PROG_TYPE_SOCKET_FILTER;
-  attr.license   = (uint64_t) "GPL";
-  attr.log_level = (uint32_t) bpf_log_level;
-  attr.log_buf   = (uint64_t) (bpf_log_level ? bpf_log_buf : 0);
-  attr.log_size = bpf_log_level ? BPF_LOG_BUF_LEN : 0;
-
-  if (!get_bool_knob("AS_ROOT", 0)) {
+  if (!as_root)
     CHECK_THAT(INVOKE_SYSCALL(state, setreuid, 0L, 1L) == 0);
-  }
 
   start_forksrv();
 
@@ -162,10 +153,18 @@ int main(int argc, const char *argv[])
 
   const size_t insn_count = preprocess_program(
         (struct bpf_insn*)input_buf, length / 8, control);
-  attr.insn_cnt = insn_count;
-  attr.insns    = (uint64_t) input_buf;
 
-  int bpffd = INVOKE_SYSCALL(state, bpf, BPF_PROG_LOAD, (long)&attr, sizeof(attr));
+  const union bpf_attr load_attr = {
+    .prog_type = BPF_PROG_TYPE_SOCKET_FILTER,
+    .insn_cnt  = insn_count,
+    .insns     = (uint64_t) input_buf,
+    .license   = (uint64_t) "GPL",
+    .log_level = (uint32_t) bpf_log_level,
+    .log_size  = bpf_log_level ? BPF_LOG_BUF_LEN : 0,
+    .log_buf   = (uint64_t) (bpf_log_level ? bpf_log_buf : 0),
+  };
+
+  int bpffd = INVOKE_SYSCALL(state, bpf, BPF_PROG_LOAD, (long)&load_attr, sizeof(load_attr));
   pth_yield(NULL);
   if (bpffd < 0) {
     fprintf(stderr, "Cannot load eBPF program: %s\n%s\n", STRERROR(state, bpffd), bpf_log_buf);
@@ -173,13 +172,14 @@ int main(int argc, const char *argv[])
     fprintf(stderr, "Program fd = %d, trying to run...\n", bpffd);
     fprintf(stderr, "Restoring EUID = 0...\n");
     CHECK_THAT(INVOKE_SYSCALL(state, setreuid, 0L, 0L) == 0);
-    memset(&attr, 0, sizeof(attr));
-    attr.test.prog_fd = bpffd;
-    attr.test.data_in       = (uint64_t) data_in;
-    attr.test.data_size_in  = sizeof(data_in);
-    attr.test.data_out      = (uint64_t) data_out;
-    attr.test.data_size_out = sizeof(data_out);
-    int res = INVOKE_SYSCALL(state, bpf, BPF_PROG_TEST_RUN, (long)&attr, sizeof(attr));
+    const union bpf_attr run_attr = {
+      .test.prog_fd       = bpffd,
+      .test.data_size_in  = sizeof(data_in),
+      .test.data_size_out = sizeof(data_out),
+      .test.data_in       = (uint64_t) data_in,
+      .test.data_out      = (uint64_t) data_out,
+    };
+    int res = INVOKE_SYSCALL(state, bpf, BPF_PROG_TEST_RUN, (long)&run_attr, sizeof(run_attr));
     fprintf(stderr, "Errno: %s\n", STRERROR(state, res));
   }
 
