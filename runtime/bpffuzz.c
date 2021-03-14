@@ -129,6 +129,7 @@ int main(int argc, const char *argv[])
   struct fuzzer_state *state = create_state(argc, argv, NULL);
   const int bpf_log_level = get_int_knob("BPF_LOG_LEVEL", 0);
   const bool as_root = get_bool_knob("AS_ROOT", 0);
+  const bool do_dump = get_bool_knob("DUMP", 0);
 
   if (!is_native_invoker(state)) {
     kernel_boot(state, argv[1]);
@@ -163,6 +164,9 @@ int main(int argc, const char *argv[])
     .log_size  = bpf_log_level ? BPF_LOG_BUF_LEN : 0,
     .log_buf   = (uint64_t) (bpf_log_level ? bpf_log_buf : 0),
   };
+
+  if (do_dump)
+    dump_to_file("bpf-dump.bin", input_buf, insn_count * 8);
 
   int bpffd = INVOKE_SYSCALL(state, bpf, BPF_PROG_LOAD, (long)&load_attr, sizeof(load_attr));
   pth_yield(NULL);
