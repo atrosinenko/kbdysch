@@ -3,6 +3,11 @@
 #include <syscall.h>
 #include <linux/bpf.h>
 
+// A hack for older header version
+#ifndef BPF_JMP32
+#define BPF_JMP32 6
+#endif
+
 #include <pth.h>
 
 #define INPUT_LEN (1 << 16)
