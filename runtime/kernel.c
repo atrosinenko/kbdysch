@@ -501,7 +501,7 @@ void kernel_invoke_write_to_file(struct fuzzer_state *state)
   if (do_write_number) {
     outlen = sprintf(iobuf, "%d", (int32_t)res_get_u32(state));
   } else if (do_write_word) {
-    int inlen = INVOKE_SYSCALL(state, read, fd, iobuf, INBUF_LEN);
+    int inlen = INVOKE_SYSCALL(state, read, fd, (intptr_t)iobuf, INBUF_LEN);
     while (inlen > 0 && !isalnum(iobuf[inlen - 1])) {
       inlen -= 1;
     }

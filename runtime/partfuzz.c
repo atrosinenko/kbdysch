@@ -42,7 +42,7 @@ int main(int argc, const char *argv[])
   // round up to 4k block
   length = (length + 4095) & ~4095;
 
-  res = INVOKE_SYSCALL(state, write, file_fd, disk_contents, length);
+  res = INVOKE_SYSCALL(state, write, file_fd, (intptr_t)disk_contents, length);
   CHECK_THAT(res == length);
   res = INVOKE_SYSCALL(state, ioctl, loop_fd, LOOP_SET_FD, file_fd);
   CHECK_THAT(res == 0);
@@ -50,8 +50,8 @@ int main(int argc, const char *argv[])
   struct loop_info64 info;
   memset(&info, 0, sizeof(info));
   info.lo_flags = LO_FLAGS_PARTSCAN;
-  strncpy(info.lo_file_name, LOOP_BACKING_STORAGE, LO_NAME_SIZE);
-  res = INVOKE_SYSCALL(state, ioctl, loop_fd, LOOP_SET_STATUS64, &info);
+  strncpy((char *)info.lo_file_name, LOOP_BACKING_STORAGE, LO_NAME_SIZE);
+  res = INVOKE_SYSCALL(state, ioctl, loop_fd, LOOP_SET_STATUS64, (intptr_t)&info);
   fprintf(stderr, "ioctl: %s\n", STRERROR(state, res));
 
   return 0;
