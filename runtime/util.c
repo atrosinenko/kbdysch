@@ -22,6 +22,7 @@ static void default_stopper_func(struct fuzzer_state *state)
 
 void start_forksrv(void)
 {
+  fprintf(stderr, "Ready to start the fork server.\n");
 #ifdef __AFL_HAVE_MANUAL_CONTROL
   __AFL_INIT();
 #endif
