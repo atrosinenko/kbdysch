@@ -16,6 +16,8 @@
 // Unfortunately, printk does not have `state` argument...
 static bool patching_was_performed = false;
 
+static bool boot_complete = false;
+
 static void kernel_dump_all_pertitions_if_requested(struct fuzzer_state *state)
 {
   if (!get_bool_knob("DUMP", 0))
@@ -285,24 +287,34 @@ static void patch_one(struct fuzzer_state *state, partition_t *partition)
 static void my_printk(const char *msg, int len)
 {
   static char print_buf[65536];
-  int do_print = !get_bool_knob("NO_PRINTK", 0);
+  bool do_print = !get_bool_knob("NO_PRINTK", 0);
   uint64_t nbw = get_int_knob("NO_BAD_WORDS", 0);
+  bool exit_on_oom = get_bool_knob("EXIT_ON_OOM", 0);
 
-  if (do_print) {
+  if (do_print)
     fwrite(msg, len, 1, stderr);
+
+  if (!boot_complete)
+    return;
+
+  if (patching_was_performed || nbw == (uint64_t)-1LL)
+    return;
+
+  memcpy(print_buf, msg, len);
+  print_buf[len] = 0;
+
+  if (exit_on_oom && (strstr(print_buf, "invoked oom-killer") ||
+                      strstr(print_buf, "page allocation failure"))) {
+    fprintf(stderr, "Exiting on OOM.\n");
+    _exit(1);
   }
 
-  if (!patching_was_performed && nbw != (uint64_t)-1LL) {
-    memcpy(print_buf, msg, len);
-    print_buf[len] = 0;
-    if (strcasestr(print_buf, "errors=remount-ro")) {
-      return;
-    }
-    for (int i = 0; i < sizeof(BAD_WORDS) / sizeof(BAD_WORDS[0]); ++i) {
-      if ((nbw & (1 << i)) == 0 && strcasestr(print_buf, BAD_WORDS[i])) {
-        abort();
-      }
-    }
+  if (strcasestr(print_buf, "errors=remount-ro"))
+    return;
+
+  for (unsigned i = 0; i < sizeof(BAD_WORDS) / sizeof(BAD_WORDS[0]); ++i) {
+    if ((nbw & (1 << i)) == 0 && strcasestr(print_buf, BAD_WORDS[i]))
+      abort();
   }
 }
 
@@ -440,6 +452,7 @@ void kernel_boot(struct fuzzer_state *state, const char *cmdline)
   lkl_mount_fs("proc");
   mount_all(state);
 #endif
+  boot_complete = true;
 }
 
 size_t kernel_read_from_file(struct fuzzer_state *state, const char *filename, const void *data, size_t size)
