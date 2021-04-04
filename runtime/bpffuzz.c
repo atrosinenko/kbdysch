@@ -13,6 +13,10 @@
 #define INPUT_LEN (1 << 16)
 #define BPF_LOG_BUF_LEN (1 << 16)
 
+DECLARE_BOOL_KNOB(as_root, "AS_ROOT")
+DECLARE_BOOL_KNOB(do_dump, "DUMP")
+DECLARE_INT_KNOB(bpf_log_level, "BPF_LOG_LEVEL")
+
 static unsigned char input_buf[INPUT_LEN];
 static char bpf_log_buf[BPF_LOG_BUF_LEN];
 
@@ -132,9 +136,6 @@ int main(int argc, const char *argv[])
         );
 
   struct fuzzer_state *state = create_state(argc, argv, NULL);
-  const int bpf_log_level = get_int_knob("BPF_LOG_LEVEL", 0);
-  const bool as_root = get_bool_knob("AS_ROOT", 0);
-  const bool do_dump = get_bool_knob("DUMP", 0);
 
   if (!is_native_invoker(state)) {
     kernel_boot(state, argv[1]);

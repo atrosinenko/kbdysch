@@ -11,6 +11,14 @@
 #include <syscall.h>
 #include <ctype.h>
 
+DECLARE_BOOL_KNOB(dump_parts, "DUMP")
+DECLARE_BOOL_KNOB(read_only, "READ_ONLY")
+DECLARE_BOOL_KNOB(no_printk, "NO_PRINTK")
+DECLARE_BOOL_KNOB(exit_on_oom, "EXIT_ON_OOM")
+DECLARE_BOOL_KNOB(no_patch, "NO_PATCH")
+DECLARE_INT_KNOB(no_bad_words, "NO_BAD_WORDS")
+DECLARE_STRING_KNOB(mount_options_knob, "MOUNT_OPTIONS")
+
 #ifdef USE_LKL
 
 // Unfortunately, printk does not have `state` argument...
@@ -20,7 +28,7 @@ static bool boot_complete = false;
 
 static void kernel_dump_all_pertitions_if_requested(struct fuzzer_state *state)
 {
-  if (!get_bool_knob("DUMP", 0))
+  if (!dump_parts)
     return;
 
   for (int part = 0; part < state->constant_state.part_count; ++part) {
@@ -197,14 +205,13 @@ static void mount_all(struct fuzzer_state *state)
     if (strncmp(partition->fstype, FSTYPE_RAW, strlen(FSTYPE_RAW)) == 0) {
       continue;
     }
-    int mount_flags = get_bool_knob("READ_ONLY", 0) ? MS_RDONLY : MS_MGC_VAL;
+    int mount_flags = read_only ? MS_RDONLY : MS_MGC_VAL;
     const char *mount_options;
 
-    if (strcmp(partition->fstype, "ext4") == 0) {
+    if (strcmp(partition->fstype, "ext4") == 0)
       mount_options = "errors=remount-ro";
-    } else {
-      mount_options = get_string_knob("MOUNT_OPTIONS", NULL);
-    }
+    else
+      mount_options = mount_options_knob;
 
     int ret = lkl_mount_dev(
       partition->disk_id,
@@ -287,17 +294,14 @@ static void patch_one(struct fuzzer_state *state, partition_t *partition)
 static void my_printk(const char *msg, int len)
 {
   static char print_buf[65536];
-  bool do_print = !get_bool_knob("NO_PRINTK", 0);
-  uint64_t nbw = get_int_knob("NO_BAD_WORDS", 0);
-  bool exit_on_oom = get_bool_knob("EXIT_ON_OOM", 0);
 
-  if (do_print)
+  if (!no_printk)
     fwrite(msg, len, 1, stderr);
 
   if (!boot_complete)
     return;
 
-  if (patching_was_performed || nbw == (uint64_t)-1LL)
+  if (patching_was_performed || no_bad_words == -1)
     return;
 
   memcpy(print_buf, msg, len);
@@ -313,7 +317,7 @@ static void my_printk(const char *msg, int len)
     return;
 
   for (unsigned i = 0; i < sizeof(BAD_WORDS) / sizeof(BAD_WORDS[0]); ++i) {
-    if ((nbw & (1 << i)) == 0 && strcasestr(print_buf, BAD_WORDS[i]))
+    if ((no_bad_words & (1 << i)) == 0 && strcasestr(print_buf, BAD_WORDS[i]))
       abort();
   }
 }
@@ -413,7 +417,7 @@ void kernel_perform_patching(struct fuzzer_state *state)
     fprintf(stderr, "PATCH requested in comparison mode, exiting.\n");
     exit(1);
   }
-  if (get_bool_knob("NO_PATCH", 0)) {
+  if (no_patch) {
     fprintf(stderr, "PATCH requested, but is explicitly disabled, exiting.\n");
     exit(1);
   }

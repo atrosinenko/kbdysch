@@ -27,4 +27,7 @@ typedef char filename_t[MAX_FILE_NAME_LEN];
 typedef char string_t[MAX_STRING_LEN];
 typedef uint8_t buffer_t[MAX_BUFFER_LEN + WATERMARK_SIZE];
 
+#define CONSTRUCTOR(unique_name) \
+  static void __attribute__((constructor)) unique_name(void)
+
 #endif // COMMON_DEFS_H

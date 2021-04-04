@@ -12,13 +12,17 @@
 
 static uint8_t reference_watermark[WATERMARK_SIZE];
 
-static void __attribute__((constructor))constr(void)
+CONSTRUCTOR(constr)
 {
   // FF 01 FD 03 ...
   for (int i = 0; i < WATERMARK_SIZE; ++i) {
     reference_watermark[i] = (i % 2) ? i : (255 - i);
   }
 }
+
+DECLARE_BOOL_KNOB(no_new_files, "NO_NEW_FILES")
+DECLARE_BOOL_KNOB(simple_file_names, "SIMPLE_NAMES")
+DECLARE_BOOL_KNOB(fault_is_ok, "FAULT_IS_OK")
 
 bool res_should_log_assignments(struct fuzzer_state *state)
 {
@@ -254,14 +258,9 @@ void res_fill_buffer(struct fuzzer_state *state, const char *name, buffer_t buf,
 
 static int res_create_file_name(struct fuzzer_state *state)
 {
-  static int no_new_files = -1;
   static char __attribute__((aligned(4))) tmp_buf[MAX_FILE_NAME_LEN + 128];
   uint64_t chain_to = res_get_u16(state) % state->current_state.file_name_count;
   int16_t component_length = res_get_u16(state);
-
-  if (no_new_files == -1) {
-    no_new_files = get_bool_knob("NO_NEW_FILES", 0);
-  }
 
   if (no_new_files || component_length < 0) {
     // reuse existing file name
@@ -284,7 +283,7 @@ static int res_create_file_name(struct fuzzer_state *state)
   } else {
     // fill with pseudo-random contents
     component_length %= MAX_FILE_NAME_LEN;
-    if (get_bool_knob("SIMPLE_NAMES", 0)) {
+    if (simple_file_names) {
       for (uint i = 0; i < compiler_length_value(component_length); ++i) {
         tmp_buf[i] = '0' + (i % 10);
       }
@@ -346,7 +345,7 @@ void res_process_integer(struct fuzzer_state *state, const char *name, uint64_t 
 
 void res_process_errno(struct fuzzer_state *state, const char *name, uint64_t reference, uint64_t value)
 {
-  if (value == -EFAULT && !get_bool_knob("FAULT_IS_OK", 0)) {
+  if (value == -EFAULT && !fault_is_ok) {
     fprintf(stderr, "EFAULT is returned as %s. Possible reasons:\n", name);
     fprintf(stderr, "  * some buffers should be specifically aligned (at page boundary, for example)\n");
     fprintf(stderr, "  * some buffers should be allocated using \"guest\" mmap()\n");

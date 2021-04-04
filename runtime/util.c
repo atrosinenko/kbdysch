@@ -9,7 +9,7 @@
 #include <signal.h>
 #include <pth.h>
 
-static void __attribute__((constructor)) constr(void)
+CONSTRUCTOR(constr)
 {
   pth_init();
   compiler_initialize();
@@ -50,7 +50,7 @@ struct fuzzer_state *create_state(int argc, const char *argv[], void (*stopper)(
   struct fuzzer_state *result = calloc(1, sizeof(*result));
 
   result->stopper_func = stopper ? stopper : default_stopper_func;
-  result->constant_state.log_assigns = !get_bool_knob("NO_LOG", 0);
+  result->constant_state.log_assigns = !get_bool_knob("NO_LOG", false);
 
   result->current_state.rng_state = 12345678901L | 1;
 
@@ -70,9 +70,9 @@ bool is_native_invoker(struct fuzzer_state *state)
   return state->constant_state.native_mode;
 }
 
-int get_bool_knob(const char *name, int default_value)
+bool get_bool_knob(const char *name, bool default_value)
 {
-  return getenv(name) ? 1 : default_value;
+  return getenv(name) ? true : default_value;
 }
 
 int get_int_knob(const char *name, int default_value)
