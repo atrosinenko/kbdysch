@@ -65,7 +65,7 @@ struct fuzzer_state *create_state(int argc, const char *argv[], void (*stopper)(
   return result;
 }
 
-int is_native_invoker(struct fuzzer_state *state)
+bool is_native_invoker(struct fuzzer_state *state)
 {
   return state->constant_state.native_mode;
 }

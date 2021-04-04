@@ -59,9 +59,9 @@ typedef struct {
   uint8_t input_buffer[MAX_INPUT_LEN]; ///< Bytes representing the testcase
   ssize_t length;   ///< Total length of the testcase
   int part_count;   ///< Total count of partitions configured
-  int diskless;     ///< Configured without any partitions
-  int native_mode;  ///< Flag: whether we are issuing syscalls to native kernel (0) or to LKL (1)
-  int log_assigns;
+  bool diskless;    ///< Configured without any partitions
+  bool native_mode; ///< Flag: whether we are issuing syscalls to native kernel instead of LKL
+  bool log_assigns;
 } constant_state_t;
 
 /**
@@ -76,7 +76,7 @@ typedef struct {
   uint32_t string_length[MAX_STRING_COUNT]; ///< Lengths of these strings
   int string_count; ///< Count of known strings
 
-  int patch_was_invoked; ///< PATCH operation was already invoked during this run
+  bool patch_was_invoked; ///< PATCH operation was already invoked during this run
 
   int current_part;   ///< Current partition index to issue syscalls against (0-indexed)
 } mutable_state_t;

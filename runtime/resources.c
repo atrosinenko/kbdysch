@@ -20,7 +20,7 @@ static void __attribute__((constructor))constr(void)
   }
 }
 
-int res_should_log_assignments(struct fuzzer_state *state)
+bool res_should_log_assignments(struct fuzzer_state *state)
 {
   return state->constant_state.log_assigns;
 }

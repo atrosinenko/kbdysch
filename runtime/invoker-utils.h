@@ -9,7 +9,7 @@
 /**
  * @brief Whether invoker should log assigned and returned values to stderr
  */
-int res_should_log_assignments(struct fuzzer_state *state);
+bool res_should_log_assignments(struct fuzzer_state *state);
 
 #define LOG_ASSIGN(fmt, ...) \
   if (res_should_log_assignments(state) && name) { \

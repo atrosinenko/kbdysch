@@ -14,7 +14,7 @@
 #ifdef USE_LKL
 
 // Unfortunately, printk does not have `state` argument...
-static int patching_was_performed = 0;
+static bool patching_was_performed = false;
 
 static void kernel_dump_all_pertitions_if_requested(struct fuzzer_state *state)
 {
@@ -157,7 +157,7 @@ static void unmount_all(struct fuzzer_state *state) {
   if (state->constant_state.diskless)
     return;
 
-  CHECK_THAT(state->constant_state.native_mode == 0);
+  CHECK_THAT(!state->constant_state.native_mode);
   fprintf(stderr, "Unmounting all...\n");
 
   res_close_all_fds(state);
@@ -183,7 +183,7 @@ static void mount_all(struct fuzzer_state *state)
   if (state->constant_state.diskless)
     return;
 
-  CHECK_THAT (state->constant_state.native_mode == 0);
+  CHECK_THAT(!state->constant_state.native_mode);
 
   kernel_dump_all_pertitions_if_requested(state);
 
@@ -367,7 +367,7 @@ void kernel_setup_disk(struct fuzzer_state *state, const char *filename, const c
 
 void kernel_configure_diskless(struct fuzzer_state *state, const char *mpoint)
 {
-  state->constant_state.diskless = 1;
+  state->constant_state.diskless = true;
   state->constant_state.part_count = 1;
   partition_t *root_pseudo_partition = &state->partitions[0];
 
@@ -416,8 +416,8 @@ void kernel_perform_patching(struct fuzzer_state *state)
   const int count = res_get_u8(state) % 32;
   fprintf(stderr, "PATCH count requested = %d\n", count);
   unmount_all(state);
-  state->mutable_state.patch_was_invoked = 1;
-  patching_was_performed = 1;
+  state->mutable_state.patch_was_invoked = true;
+  patching_was_performed = true;
   for(int i = 0; i < count; ++i) {
     patch_one(state, partition);
   }

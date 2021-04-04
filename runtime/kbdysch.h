@@ -73,7 +73,7 @@ void start_forksrv(void);
  */
 struct fuzzer_state *create_state(int argc, const char *argv[], void (*stopper)(void));
 
-int is_native_invoker(struct fuzzer_state *state);
+bool is_native_invoker(struct fuzzer_state *state);
 
 static inline long lkl_exit_wrapper(long result)
 {
