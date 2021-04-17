@@ -106,11 +106,9 @@ static void adjust_jmp(struct bpf_insn insns[], size_t length,
     if (no_back_jumps && insns[i].off < 0)
       insns[i].off = 0;
 
-    const int pc = i + 1;
-    while (pc + insns[i].off < 0)
-      insns[i].off >>= 1;
-    while (pc + insns[i].off >= (int)length)
-      insns[i].off >>= 1;
+    const int dest_pc = i + 1 + insns[i].off;
+    if (dest_pc < 0 || dest_pc >= (int)length)
+      insns[i].off = 0;
   }
 }
 
