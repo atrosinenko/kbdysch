@@ -13,6 +13,17 @@
 #define INPUT_LEN (1 << 16)
 #define BPF_LOG_BUF_LEN (1 << 16)
 
+static inline void zero_fill_after__helper(void *variable, void *field,
+                                           size_t var_size, size_t field_size) {
+  uintptr_t field_offset = (uintptr_t)field - (uintptr_t)variable;
+  size_t fill_size = var_size - field_offset - field_size;
+  void *fill_start = (void *)((uintptr_t)field + field_size);
+  memset(fill_start, 0, fill_size);
+}
+#define ZERO_FILL_AFTER(variable, field) \
+  zero_fill_after__helper(&variable, &variable.field, \
+                          sizeof(variable), sizeof(variable.field))
+
 DECLARE_BOOL_KNOB(as_root, "AS_ROOT")
 DECLARE_BOOL_KNOB(do_dump, "DUMP")
 DECLARE_INT_KNOB(bpf_log_level, "BPF_LOG_LEVEL")
@@ -161,7 +172,7 @@ int main(int argc, const char *argv[])
   const size_t insn_count = preprocess_program(
         (struct bpf_insn*)input_buf, length / 8, control);
 
-  const union bpf_attr load_attr = {
+  union bpf_attr load_attr = {
     .prog_type = BPF_PROG_TYPE_SOCKET_FILTER,
     .insn_cnt  = insn_count,
     .insns     = (uint64_t) input_buf,
@@ -170,6 +181,7 @@ int main(int argc, const char *argv[])
     .log_size  = bpf_log_level ? BPF_LOG_BUF_LEN : 0,
     .log_buf   = (uint64_t) (bpf_log_level ? bpf_log_buf : 0),
   };
+  ZERO_FILL_AFTER(load_attr, log_buf);
 
   if (do_dump)
     dump_to_file("bpf-dump.bin", input_buf, insn_count * 8);
@@ -182,13 +194,14 @@ int main(int argc, const char *argv[])
     fprintf(stderr, "Program fd = %d, trying to run...\n", bpffd);
     fprintf(stderr, "Restoring EUID = 0...\n");
     CHECK_THAT(INVOKE_SYSCALL(state, setreuid, 0L, 0L) == 0);
-    const union bpf_attr run_attr = {
+    union bpf_attr run_attr = {
       .test.prog_fd       = bpffd,
       .test.data_size_in  = sizeof(data_in),
       .test.data_size_out = sizeof(data_out),
       .test.data_in       = (uint64_t) data_in,
       .test.data_out      = (uint64_t) data_out,
     };
+    ZERO_FILL_AFTER(run_attr, test);
     int res = INVOKE_SYSCALL(state, bpf, BPF_PROG_TEST_RUN, (long)&run_attr, sizeof(run_attr));
     fprintf(stderr, "Errno: %s\n", STRERROR(state, res));
   }
