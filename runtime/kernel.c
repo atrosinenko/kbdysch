@@ -455,8 +455,8 @@ void kernel_boot(struct fuzzer_state *state, const char *cmdline)
   lkl_mount_fs("sysfs");
   lkl_mount_fs("proc");
   mount_all(state);
-#endif
   boot_complete = true;
+#endif
 }
 
 size_t kernel_read_from_file(struct fuzzer_state *state, const char *filename, const void *data, size_t size)
