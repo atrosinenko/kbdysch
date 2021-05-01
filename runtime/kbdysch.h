@@ -93,23 +93,36 @@ static inline long lkl_exit_wrapper(long result)
 }
 
 #ifdef USE_LKL
-#define INVOKE_SYSCALL_0(state, syscall_name) \
-    (compiler_enter_lkl(), \
-    lkl_exit_wrapper((is_native_invoker(state)) ? syscall(SYS_##syscall_name) : lkl_syscall(__lkl__NR_##syscall_name, (long[]){0, 0, 0, 0, 0, 0 /* ensure >=6 dereferenceable elements */})))
-#define INVOKE_SYSCALL(state, syscall_name, ...) \
-    (compiler_enter_lkl(), \
-    lkl_exit_wrapper((is_native_invoker(state) ? syscall(SYS_##syscall_name, __VA_ARGS__) : lkl_syscall(__lkl__NR_##syscall_name, (long[]){__VA_ARGS__, 0, 0, 0, 0, 0, 0 /* ensure >=6 dereferenceable elements */}))))
-#define GET_ERRNO(state, returned_value_if_lkl) (is_native_invoker(state) ? errno : (returned_value_if_lkl))
-#define STRERROR(state, returned_value_if_lkl)  (is_native_invoker(state) ? strerror(errno) : lkl_strerror(returned_value_if_lkl))
+// Appending 6 literal zero elements ensures `params` argument of lkl_syscall()
+// has at least 6 dereferenceable elements.
+#define LKL_SAFE_SYSCALL(name, ...) \
+    (compiler_enter_lkl(), lkl_exit_wrapper( \
+        lkl_syscall(__lkl__NR_##name, (long[]){__VA_ARGS__, 0, 0, 0, 0, 0, 0})))
+#define LKL_ERRNO(retval) (retval)
+#define LKL_STRERROR(retval) lkl_strerror((retval))
 #else
 void warn_lkl_not_supported(void);
-#define INVOKE_SYSCALL_0(state, syscall_name) \
-    (is_native_invoker(state) ? syscall(SYS_##syscall_name) : (warn_lkl_not_supported(), 0))
-#define INVOKE_SYSCALL(state, syscall_name, ...) \
-    (is_native_invoker(state) ? syscall(SYS_##syscall_name, __VA_ARGS__) : (warn_lkl_not_supported(), 0))
-#define GET_ERRNO(state, returned_value) (is_native_invoker(state) ? errno : (warn_lkl_not_supported(), 0))
-#define STRERROR(state, returned_value)  (is_native_invoker(state) ? strerror(errno) : (warn_lkl_not_supported(), (const char *)NULL))
+#define LKL_SAFE_SYSCALL(name, ...) (warn_lkl_not_supported(), 0)
+#define LKL_ERRNO(retval) (warn_lkl_not_supported(), 0)
+#define LKL_STRERROR(retval) (warn_lkl_not_supported(), (const char *)NULL)
 #endif
+
+#define INVOKE_SYSCALL_0(state, syscall_name) \
+    (is_native_invoker(state) ? \
+        syscall(SYS_##syscall_name) : \
+        LKL_SAFE_SYSCALL(syscall_name, 0 /* dummy */))
+#define INVOKE_SYSCALL(state, syscall_name, ...) \
+    (is_native_invoker(state) ? \
+        syscall(SYS_##syscall_name, __VA_ARGS__) : \
+        LKL_SAFE_SYSCALL(syscall_name, __VA_ARGS__))
+#define GET_ERRNO(state, returned_value_if_lkl) \
+    (is_native_invoker(state) ? \
+        errno : \
+        LKL_ERRNO(returned_value_if_lkl))
+#define STRERROR(state, returned_value_if_lkl) \
+    (is_native_invoker(state) ? \
+        strerror(errno) : \
+        LKL_STRERROR(returned_value_if_lkl))
 
 #define CHECK_THAT(x) check_that_impl((x), #x)
 #define CHECK_INVOKER_ERRNO(state, x) check_invoker_errno_impl((state), (x), #x)
