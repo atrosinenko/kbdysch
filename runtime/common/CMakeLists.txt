@@ -11,3 +11,4 @@ add_library(common_lib STATIC
 )
 
 target_include_directories(common_lib PUBLIC ${PROJECT_SOURCE_DIR}/common)
+target_link_libraries(common_lib -lpth -lrt)

@@ -7,11 +7,9 @@ set(   LKL_INCLUDE_PATH "${PROJECT_BINARY_DIR}/lkl-include" CACHE STRING "Full p
 set(   LKL_LIB_PATH     "${PROJECT_BINARY_DIR}/liblkl.so"   CACHE STRING "Full path to LKL library file")
 
 add_subdirectory(common)
-link_libraries(common_lib)
+include(common/Helpers.cmake)
 
 # Configure build flags
-
-link_libraries(-lpth -lrt)
 
 if (USE_LKL)
     link_libraries(${LKL_LIB_PATH})
@@ -25,10 +23,8 @@ endif()
 
 # Configure harnesses
 
-if (USE_INVOKERS)
-    add_executable(fsfuzz  fsfuzz.c  generated/invoker-fs.c)
-endif()
-
-add_executable(bpffuzz bpffuzz.c)
-add_executable(hidfuzz hidfuzz.c)
-add_executable(partfuzz partfuzz.c)
+RegisterInvoker(fs)
+RegisterHarnessWithInvoker(fsfuzz fs)
+RegisterHarness(bpffuzz)
+RegisterHarness(hidfuzz)
+RegisterHarness(partfuzz)
