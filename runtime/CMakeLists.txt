@@ -6,12 +6,12 @@ option(USE_INVOKERS     "Build fuzzers that require invokers to be generated fir
 set(   LKL_INCLUDE_PATH "${PROJECT_BINARY_DIR}/lkl-include" CACHE STRING "Full path to the tools/lkl/include of LKL build")
 set(   LKL_LIB_PATH     "${PROJECT_BINARY_DIR}/liblkl.so"   CACHE STRING "Full path to LKL library file")
 
-add_library(common_lib OBJECT kernel.c resources.c util.c)
+add_subdirectory(common)
+link_libraries(common_lib)
 
 # Configure build flags
 
 link_libraries(-lpth -lrt)
-include_directories(${PROJECT_SOURCE_DIR})
 
 if (USE_LKL)
     link_libraries(${LKL_LIB_PATH})
@@ -26,9 +26,9 @@ endif()
 # Configure harnesses
 
 if (USE_INVOKERS)
-    add_executable(fsfuzz  fsfuzz.c  generated/invoker-fs.c $<TARGET_OBJECTS:common_lib>)
+    add_executable(fsfuzz  fsfuzz.c  generated/invoker-fs.c)
 endif()
 
-add_executable(bpffuzz bpffuzz.c $<TARGET_OBJECTS:common_lib>)
-add_executable(hidfuzz hidfuzz.c $<TARGET_OBJECTS:common_lib>)
-add_executable(partfuzz partfuzz.c $<TARGET_OBJECTS:common_lib>)
+add_executable(bpffuzz bpffuzz.c)
+add_executable(hidfuzz hidfuzz.c)
+add_executable(partfuzz partfuzz.c)
