@@ -2,6 +2,7 @@
 #include "invoker-utils.h"
 
 DECLARE_BITMASK_KNOB(skip_block_mask, "SKIPPED_BLOCKS")
+DECLARE_INT_KNOB_DEF(min_consume, "MIN_CONSUME", 1)
 
 void skip_block_if_requested(struct fuzzer_state *state, unsigned block_index) {
   const unsigned max_controlled_blocks = sizeof(skip_block_mask) * 8;
@@ -21,7 +22,7 @@ void skip_block_if_requested(struct fuzzer_state *state, unsigned block_index) {
 
 void align_next_block(struct fuzzer_state *state, int block_index,
                       unsigned decoded_bytes) {
-  size_t consume_total = 1;
+  size_t consume_total = min_consume;
   while (consume_total < decoded_bytes)
     consume_total *= 2;
 

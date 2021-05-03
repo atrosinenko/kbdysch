@@ -55,6 +55,8 @@ const char *get_string_knob(const char *name, const char *default_value);
   DECLARE_KNOB_DEF(bool, get_bool_knob, name, var, false)
 #define DECLARE_BITMASK_KNOB(name, var) \
   DECLARE_KNOB_DEF(bitmask_t, get_bitmask_knob, name, var, 0)
+#define DECLARE_INT_KNOB_DEF(name, var, default_value) \
+  DECLARE_KNOB_DEF(int, get_int_knob, name, var, default_value)
 #define DECLARE_INT_KNOB(name, var) \
   DECLARE_KNOB_DEF(int, get_int_knob, name, var, 0)
 #define DECLARE_STRING_KNOB(name, var) \
