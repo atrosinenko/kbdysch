@@ -87,7 +87,11 @@ void start_forksrv(void);
  */
 struct fuzzer_state *create_state(int argc, const char *argv[], void (*stopper)(void));
 
+void stop_processing(struct fuzzer_state *state);
+
 bool is_native_invoker(struct fuzzer_state *state);
+
+int get_num_errors_returned(struct fuzzer_state *state);
 
 bool syscalls_inhibited(struct fuzzer_state *state);
 void inhibit_syscalls(struct fuzzer_state *state, bool inhibited);

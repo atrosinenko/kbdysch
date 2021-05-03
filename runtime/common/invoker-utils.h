@@ -320,6 +320,7 @@ static inline const char *invoker_read_string_enum(struct fuzzer_state *state, c
 
 /// \defgroup harness_utils Invoker-related utility functions for harnesses
 /// \@{
+void exit_if_too_many_errors(struct fuzzer_state *state);
 void skip_block_if_requested(struct fuzzer_state *state, unsigned block_index);
 void align_next_block(struct fuzzer_state *state, int block_index, unsigned decoded_bytes);
 size_t do_invoke(struct fuzzer_state *state, int block_index);

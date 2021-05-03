@@ -88,6 +88,7 @@ typedef struct {
  */
 typedef struct {
   int file_name_count; ///< Count of file names initialized so far
+  int num_errors_returned;
   uint64_t offset;    ///< Current offset inside the testcase
   uint64_t rng_state; ///< Current state of RNG
 } saveable_state_t;

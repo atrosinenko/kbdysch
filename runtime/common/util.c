@@ -67,9 +67,17 @@ struct fuzzer_state *create_state(int argc, const char *argv[], void (*stopper)(
   return result;
 }
 
+void stop_processing(struct fuzzer_state *state) {
+  state->stopper_func(state);
+}
+
 bool is_native_invoker(struct fuzzer_state *state)
 {
   return state->constant_state.native_mode;
+}
+
+int get_num_errors_returned(struct fuzzer_state *state) {
+  return state->current_state.num_errors_returned;
 }
 
 bool syscalls_inhibited(struct fuzzer_state *state) {
