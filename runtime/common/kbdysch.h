@@ -45,19 +45,15 @@ bool get_bool_knob(const char *name, bool default_value);
 int get_int_knob(const char *name, int default_value);
 const char *get_string_knob(const char *name, const char *default_value);
 
-#define DECLARE_BOOL_KNOB_DEF(name, var, default_value) \
-  static bool name; \
-  CONSTRUCTOR(init_##name) { name = get_bool_knob(var, default_value); }
-#define DECLARE_INT_KNOB_DEF(name, var, default_value) \
-  static int name; \
-  CONSTRUCTOR(init_##name) { name = get_int_knob(var, default_value); }
-#define DECLARE_STRING_KNOB_DEF(name, var, default_value) \
-  static const char *name; \
-  CONSTRUCTOR(init_##name) { name = get_string_knob(var, default_value); }
-
-#define DECLARE_BOOL_KNOB(name, var)   DECLARE_BOOL_KNOB_DEF(name, var, false)
-#define DECLARE_INT_KNOB(name, var)    DECLARE_INT_KNOB_DEF(name, var, 0)
-#define DECLARE_STRING_KNOB(name, var) DECLARE_STRING_KNOB_DEF(name, var, NULL)
+#define DECLARE_KNOB_DEF(type, getter, name, var, default_value) \
+  static type name; \
+  CONSTRUCTOR(init_##name) { name = getter(var, default_value); }
+#define DECLARE_BOOL_KNOB(name, var) \
+  DECLARE_KNOB_DEF(bool, get_bool_knob, name, var, false)
+#define DECLARE_INT_KNOB(name, var) \
+  DECLARE_KNOB_DEF(int, get_int_knob, name, var, 0)
+#define DECLARE_STRING_KNOB(name, var) \
+  DECLARE_KNOB_DEF(const char *, get_string_knob, name, var, NULL)
 
 /// @}
 
