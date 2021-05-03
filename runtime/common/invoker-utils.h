@@ -318,4 +318,10 @@ static inline const char *invoker_read_string_enum(struct fuzzer_state *state, c
   return result;
 }
 
+/// \defgroup harness_utils Invoker-related utility functions for harnesses
+/// \@{
+void align_next_block(struct fuzzer_state *state, int block_index, unsigned decoded_bytes);
+size_t do_invoke(struct fuzzer_state *state, int block_index);
+/// \@}
+
 #endif // INVOKER_UTILS_H

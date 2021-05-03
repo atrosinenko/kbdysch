@@ -52,21 +52,9 @@ int main(int argc, const char *argv[])
   res_load_whole_stdin(state);
 
   if (setjmp(*res_get_stopper_env(state)) == 0) {
-    for (int op_num = 0; op_num < MAX_INPUT_OPS; ++op_num) {
-      size_t old_offset = res_get_cur_offset(state);
-      uint8_t opc = res_get_u8(state);
-      fprintf(stderr, "==> [%03d] Decoding at offset %ld, opc = %u...\n", op_num, res_get_cur_offset(state), opc);
-
-      invoke_next_op(state, opc);
-      size_t decoded_bytes = res_get_cur_offset(state) - old_offset;
-
-      size_t consume_total = 1;
-      while (consume_total < decoded_bytes) {
-        consume_total *= 2;
-      }
-      res_skip_bytes(state, consume_total - decoded_bytes);
-
-      fprintf(stderr, "<== [%03d] Decoded %zu bytes, consuming %zu in total.\n", op_num, decoded_bytes, consume_total);
+    for (int block_index = 0; block_index < MAX_INPUT_OPS; ++block_index) {
+      size_t decoded_bytes = do_invoke(state, block_index);
+      align_next_block(state, block_index, decoded_bytes);
     }
   }
   size_t processed = res_get_cur_offset(state);
