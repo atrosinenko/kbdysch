@@ -97,7 +97,7 @@ typedef struct {
  * @brief Fuzzer state
  */
 struct fuzzer_state {
-  void (*stopper_func)(struct fuzzer_state *state);
+  stopper_func_t stopper_func;
   jmp_buf stopper;
   constant_state_t constant_state;
   partition_t partitions[MAX_PART_COUNT];

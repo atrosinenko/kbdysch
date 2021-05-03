@@ -80,12 +80,14 @@ void kernel_mk_char_devices(struct fuzzer_state *state);
 void dump_to_file(const char *dump_file_name, const void *data, size_t size);
 void start_forksrv(void);
 
+typedef void (*stopper_func_t)(struct fuzzer_state *state);
+
 /**
  * @brief Creates and initialize the invoker state.
  *
  * @ingroup state_management
  */
-struct fuzzer_state *create_state(int argc, const char *argv[], void (*stopper)(void));
+struct fuzzer_state *create_state(int argc, const char *argv[], stopper_func_t stopper_func);
 
 void stop_processing(struct fuzzer_state *state);
 

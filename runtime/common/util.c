@@ -47,11 +47,11 @@ void start_forksrv(void)
 
 static const char *known_strings[] = { "" /* empty */ };
 
-struct fuzzer_state *create_state(int argc, const char *argv[], void (*stopper)(void))
+struct fuzzer_state *create_state(int argc, const char *argv[], stopper_func_t stopper_func)
 {
   struct fuzzer_state *result = calloc(1, sizeof(*result));
 
-  result->stopper_func = stopper ? stopper : default_stopper_func;
+  result->stopper_func = stopper_func ? stopper_func : default_stopper_func;
   result->constant_state.log_assigns = !get_bool_knob("NO_LOG", false);
 
   result->current_state.rng_state = 12345678901L | 1;
