@@ -41,7 +41,9 @@ void show_help_and_exit_if_needed(int argc, const char *argv[], const char *help
 /// \defgroup knobs Retrieving configuretion parameters
 /// @{
 
+typedef uint64_t bitmask_t;
 bool get_bool_knob(const char *name, bool default_value);
+bitmask_t get_bitmask_knob(const char *name, bitmask_t default_value);
 int get_int_knob(const char *name, int default_value);
 const char *get_string_knob(const char *name, const char *default_value);
 
@@ -50,6 +52,8 @@ const char *get_string_knob(const char *name, const char *default_value);
   CONSTRUCTOR(init_##name) { name = getter(var, default_value); }
 #define DECLARE_BOOL_KNOB(name, var) \
   DECLARE_KNOB_DEF(bool, get_bool_knob, name, var, false)
+#define DECLARE_BITMASK_KNOB(name, var) \
+  DECLARE_KNOB_DEF(bitmask_t, get_bitmask_knob, name, var, 0)
 #define DECLARE_INT_KNOB(name, var) \
   DECLARE_KNOB_DEF(int, get_int_knob, name, var, 0)
 #define DECLARE_STRING_KNOB(name, var) \

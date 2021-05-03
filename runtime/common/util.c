@@ -2,6 +2,7 @@
 
 #include "internal-defs.h"
 
+#include <assert.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -76,10 +77,16 @@ bool get_bool_knob(const char *name, bool default_value)
   return getenv(name) ? true : default_value;
 }
 
-int get_int_knob(const char *name, int default_value)
+bitmask_t get_bitmask_knob(const char *name, bitmask_t default_value)
 {
   const char *str = getenv(name);
-  return str ? atoi(str) : default_value;
+  assert(sizeof(bitmask_t) <= sizeof(long long));
+  return str ? ((bitmask_t)strtoll(str, NULL, 0)) : default_value;
+}
+
+int get_int_knob(const char *name, int default_value) {
+  const char *str = getenv(name);
+  return str ? ((int)strtol(str, NULL, 0)) : default_value;
 }
 
 const char *get_string_knob(const char *name, const char *default_value)
