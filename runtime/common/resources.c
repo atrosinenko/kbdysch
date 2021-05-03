@@ -10,6 +10,8 @@
 #include <assert.h>
 #include <syscall.h>
 
+DECLARE_BOOL_KNOB(ignore_invalid_errno, "IGNORE_INVALID_ERRNO")
+
 static uint8_t reference_watermark[WATERMARK_SIZE];
 
 CONSTRUCTOR(constr)
@@ -343,7 +345,7 @@ void res_process_integer(struct fuzzer_state *state, const char *name, uint64_t 
   crash_on_difference_int(state, "Return values differ", name, reference, value);
 }
 
-void res_process_errno(struct fuzzer_state *state, const char *name, uint64_t reference, uint64_t value)
+void res_process_errno(struct fuzzer_state *state, const char *name, uint64_t reference, int64_t value)
 {
   if (value == -EFAULT && !fault_is_ok) {
     fprintf(stderr, "EFAULT is returned as %s. Possible reasons:\n", name);
@@ -352,7 +354,8 @@ void res_process_errno(struct fuzzer_state *state, const char *name, uint64_t re
     fprintf(stderr, "Try adjusting invoker description or specify FAULT_IS_OK knob.\n");
     abort();
   }
-  if (value < 0 && STRERROR(state, (int)value) == STRERROR(state, 100500)) {
+  if (!ignore_invalid_errno && value < 0 && !is_native_invoker(state) &&
+      STRERROR(state, (int)value) == STRERROR(state, 100500)) {
     fprintf(stderr, "Invalid errno:\n");
     fprintf(stderr, "  Name = %s\n", name);
     fprintf(stderr, "  [%s] \t %d\n", state->partitions[state->mutable_state.current_part].fstype, errno);

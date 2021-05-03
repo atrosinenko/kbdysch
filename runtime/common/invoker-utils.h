@@ -208,7 +208,7 @@ static inline uint64_t res_get_u64(struct fuzzer_state *state)
 /// @{
 
 void res_process_integer(struct fuzzer_state *state, const char *name, uint64_t reference, uint64_t value);
-void res_process_errno(struct fuzzer_state *state, const char *name, uint64_t reference, uint64_t value);
+void res_process_errno(struct fuzzer_state *state, const char *name, uint64_t reference, int64_t value);
 
 /**
  * @brief Processes the returned file descriptor numbers
