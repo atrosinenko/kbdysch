@@ -1,6 +1,24 @@
 #include "kbdysch.h"
 #include "invoker-utils.h"
 
+DECLARE_BITMASK_KNOB(skip_block_mask, "SKIPPED_BLOCKS")
+
+void skip_block_if_requested(struct fuzzer_state *state, unsigned block_index) {
+  const unsigned max_controlled_blocks = sizeof(skip_block_mask) * 8;
+  bool skip_this_block;
+  if (block_index >= max_controlled_blocks) {
+    fprintf(stderr, "!!! [%03d] Filtering of more than %u blocks is not supported yet.\n",
+            block_index, max_controlled_blocks);
+    skip_this_block = false;
+  } else {
+    skip_this_block = skip_block_mask & BIT(block_index);
+  }
+  if (skip_this_block)
+    fprintf(stderr, "!!! [%03u] *** Block will be skipped ***\n", block_index);
+
+  inhibit_syscalls(state, skip_this_block);
+}
+
 void align_next_block(struct fuzzer_state *state, int block_index,
                       unsigned decoded_bytes) {
   size_t consume_total = 1;

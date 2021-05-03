@@ -72,6 +72,14 @@ bool is_native_invoker(struct fuzzer_state *state)
   return state->constant_state.native_mode;
 }
 
+bool syscalls_inhibited(struct fuzzer_state *state) {
+  return state->mutable_state.syscalls_inhibited;
+}
+
+void inhibit_syscalls(struct fuzzer_state *state, bool inhibited) {
+  state->mutable_state.syscalls_inhibited = inhibited;
+}
+
 bool get_bool_knob(const char *name, bool default_value)
 {
   return getenv(name) ? true : default_value;

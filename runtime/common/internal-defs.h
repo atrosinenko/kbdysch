@@ -75,10 +75,9 @@ typedef struct {
   uint32_t string_hash[MAX_STRING_COUNT]; ///< Some non-cryptographic hashes of these strings
   uint32_t string_length[MAX_STRING_COUNT]; ///< Lengths of these strings
   int string_count; ///< Count of known strings
-
-  bool patch_was_invoked; ///< PATCH operation was already invoked during this run
-
   int current_part;   ///< Current partition index to issue syscalls against (0-indexed)
+  bool patch_was_invoked; ///< PATCH operation was already invoked during this run
+  bool syscalls_inhibited; ///< Temporarily make INVOKE_SYSCALL no-op
 } mutable_state_t;
 
 /**

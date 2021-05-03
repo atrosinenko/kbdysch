@@ -42,6 +42,7 @@ void show_help_and_exit_if_needed(int argc, const char *argv[], const char *help
 /// @{
 
 typedef uint64_t bitmask_t;
+#define BIT(n) ((bitmask_t)1 << (n))
 bool get_bool_knob(const char *name, bool default_value);
 bitmask_t get_bitmask_knob(const char *name, bitmask_t default_value);
 int get_int_knob(const char *name, int default_value);
@@ -86,6 +87,9 @@ struct fuzzer_state *create_state(int argc, const char *argv[], void (*stopper)(
 
 bool is_native_invoker(struct fuzzer_state *state);
 
+bool syscalls_inhibited(struct fuzzer_state *state);
+void inhibit_syscalls(struct fuzzer_state *state, bool inhibited);
+
 static inline long lkl_exit_wrapper(long result)
 {
   compiler_exit_lkl();
@@ -108,13 +112,13 @@ void warn_lkl_not_supported(void);
 #endif
 
 #define INVOKE_SYSCALL_0(state, syscall_name) \
-    (is_native_invoker(state) ? \
+    (syscalls_inhibited(state) ? 0 : (is_native_invoker(state) ? \
         syscall(SYS_##syscall_name) : \
-        LKL_SAFE_SYSCALL(syscall_name, 0 /* dummy */))
+        LKL_SAFE_SYSCALL(syscall_name, 0 /* dummy */)))
 #define INVOKE_SYSCALL(state, syscall_name, ...) \
-    (is_native_invoker(state) ? \
+    (syscalls_inhibited(state) ? 0 : (is_native_invoker(state) ? \
         syscall(SYS_##syscall_name, __VA_ARGS__) : \
-        LKL_SAFE_SYSCALL(syscall_name, __VA_ARGS__))
+        LKL_SAFE_SYSCALL(syscall_name, __VA_ARGS__)))
 #define GET_ERRNO(state, returned_value_if_lkl) \
     (is_native_invoker(state) ? \
         errno : \
