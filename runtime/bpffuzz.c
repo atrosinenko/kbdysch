@@ -26,6 +26,7 @@ static inline void zero_fill_after__helper(void *variable, void *field,
 
 DECLARE_BOOL_KNOB(as_root, "AS_ROOT")
 DECLARE_BOOL_KNOB(do_dump, "DUMP")
+DECLARE_BOOL_KNOB(force_drop_back_jumps, "NO_BACK_JUMPS")
 DECLARE_INT_KNOB(bpf_log_level, "BPF_LOG_LEVEL")
 
 static unsigned char input_buf[INPUT_LEN];
@@ -128,7 +129,7 @@ static size_t preprocess_program(struct bpf_insn insns[], size_t insn_count,
   // conservatively.
   if ((control & 0xf0) == 0)
     insn_count = drop_branches(insns, insn_count);
-  else if ((control & 0x30) == 0)
+  else if (force_drop_back_jumps || (control & 0x30) == 0)
     adjust_jmp(insns, insn_count, /* no_back_jumps = */ true);
   else if ((control & 0x10) == 0)
     adjust_jmp(insns, insn_count, /* no_back_jumps = */ false);
