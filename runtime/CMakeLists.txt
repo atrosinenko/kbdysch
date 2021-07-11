@@ -3,6 +3,7 @@ project(kbdysch)
 
 option(USE_LKL          "Link with LKL (otherwise just build invokers for the host kernel)" ON)
 option(USE_INVOKERS     "Build fuzzers that require invokers to be generated first" ON)
+option(FAKE_TIME        "Report fake time values to Pth, LKL, etc. to increase the stability" ON)
 set(   LKL_INCLUDE_PATH "${PROJECT_BINARY_DIR}/lkl-include" CACHE STRING "Full path to the tools/lkl/include of LKL build")
 set(   LKL_LIB_PATH     "${PROJECT_BINARY_DIR}/liblkl.so"   CACHE STRING "Full path to LKL library file")
 
@@ -12,6 +13,7 @@ if (USE_LKL)
     add_definitions(-DUSE_LKL)
 endif()
 
+set(OVERRIDE_LIBS "")
 add_subdirectory(common)
 include(common/Helpers.cmake)
 
