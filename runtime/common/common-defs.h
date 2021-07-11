@@ -32,4 +32,7 @@ typedef uint8_t buffer_t[MAX_BUFFER_LEN + WATERMARK_SIZE];
 #define CONSTRUCTOR(unique_name) \
   static void __attribute__((constructor)) unique_name(void)
 
+// For raw buffers that could possibly contain aligned structures
+#define ALIGNED_ENOUGH __attribute__((aligned(64)))
+
 #endif // COMMON_DEFS_H

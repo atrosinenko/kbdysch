@@ -29,11 +29,11 @@ DECLARE_BOOL_KNOB(do_dump, "DUMP")
 DECLARE_BOOL_KNOB(force_drop_back_jumps, "NO_BACK_JUMPS")
 DECLARE_INT_KNOB(bpf_log_level, "BPF_LOG_LEVEL")
 
-static unsigned char input_buf[INPUT_LEN];
+static ALIGNED_ENOUGH unsigned char input_buf[INPUT_LEN];
 static char bpf_log_buf[BPF_LOG_BUF_LEN];
 
-static char data_in[1024];
-static char data_out[1024];
+static ALIGNED_ENOUGH char data_in[1024];
+static ALIGNED_ENOUGH char data_out[1024];
 
 static inline bool is_exit(unsigned opcode) {
   return opcode == 0x95;
