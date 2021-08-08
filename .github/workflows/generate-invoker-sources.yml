@@ -1,0 +1,31 @@
+name: Generate C sources for invokers
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'descriptions/**'
+      - 'generator/**'
+defaults:
+  run:
+    shell: bash
+    working-directory: generator
+jobs:
+  generate-invokers:
+    runs-on: ubuntu-18.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-java@v2
+        with:
+          distribution: 'zulu'
+          java-version: '11'
+      - name: Compile generator
+        run: java -jar sbt-launch.jar compile
+      - name: Generate invokers
+        run: java -jar sbt-launch.jar 'run fs.txt:invoker-fs.c'
+      - name: Upload generated sources
+        uses: actions/upload-artifacts@v2
+        with:
+          name: invokers
+          path: runtime/generated/*.c
