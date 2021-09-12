@@ -25,6 +25,7 @@ CONSTRUCTOR(constr)
 DECLARE_BOOL_KNOB(no_new_files, "NO_NEW_FILES")
 DECLARE_BOOL_KNOB(simple_file_names, "SIMPLE_NAMES")
 DECLARE_BOOL_KNOB(fault_is_ok, "FAULT_IS_OK")
+DECLARE_INT_KNOB(opt_max_file_name_length, "MAX_FILE_NAME_LENGTH");
 
 bool res_should_log_assignments(struct fuzzer_state *state)
 {
@@ -187,6 +188,37 @@ void res_add_to_known_strings(struct fuzzer_state *state, const char *string)
   state->mutable_state.string_length[index] = length;
 }
 
+#ifdef USE_COMPACT_ENCODING
+static size_t res_fill_buffer_compact(struct fuzzer_state *state, const char *name, uint8_t *buffer, size_t size) {
+  uint64_t control = res_get_u64(state);
+  unsigned length = control & 0xff;
+  unsigned offset = (control >> 8) & 0xff;
+  uint64_t six_bytes = control >> 16;
+
+  if (length >= size)
+    length = size;
+  if (offset >= length)
+    offset = length;
+  unsigned payload_length = length - offset;
+  if (payload_length > 8)
+    payload_length = 8;
+
+  for (unsigned i = 0; i < length; ++i)
+    buffer[i] = '0' + (i % 10);
+  memcpy(buffer + offset, &six_bytes, payload_length);
+  LOG_ASSIGN("<compact initializer: %u + %u + %u>", offset, payload_length, length - offset - payload_length);
+  return length;
+}
+
+void res_fill_string(struct fuzzer_state *state, const char *name, char *value) {
+  size_t length = res_fill_buffer_compact(state, name, (uint8_t *)value, MAX_STRING_LEN - 1);
+  value[length] = 0;
+}
+void res_fill_buffer(struct fuzzer_state *state, const char *name, buffer_t buf, uint64_t *length, direction_t dir) {
+  *length = res_fill_buffer_compact(state, name, buf, MAX_BUFFER_LEN);
+  memcpy(buf + *length, reference_watermark, WATERMARK_SIZE);
+}
+#else
 void res_fill_string(struct fuzzer_state *state, const char *name, char *value)
 {
   int16_t length = (int16_t) res_get_u16(state);
@@ -257,20 +289,28 @@ void res_fill_buffer(struct fuzzer_state *state, const char *name, buffer_t buf,
   // it is faster to allow overfill and put watermark afterwards
   memcpy(buf + len, reference_watermark, WATERMARK_SIZE);
 }
+#endif
 
 static int res_create_file_name(struct fuzzer_state *state)
 {
   static char __attribute__((aligned(4))) tmp_buf[MAX_FILE_NAME_LEN + 128];
   uint64_t chain_to = res_get_u16(state) % state->current_state.file_name_count;
-  int16_t component_length = res_get_u16(state);
+  uint16_t component_length;
 
-  if (no_new_files || component_length < 0) {
-    // reuse existing file name
+  if (no_new_files)
     return (int)chain_to;
-  }
 
+#ifdef USE_COMPACT_ENCODING
+  component_length = res_fill_buffer_compact(state, "", (uint8_t *)tmp_buf, MAX_FILE_NAME_LEN);
+  if (opt_max_file_name_length && component_length > opt_max_file_name_length)
+    tmp_buf[opt_max_file_name_length] = '\0';
+  if (component_length == 0)
+    return (int)chain_to;
+#else
+  component_length = res_get_u16(state);
+  if (component_length & 0x8000)
+    return (int)chain_to; // reuse existing file name
   component_length %= 512;
-
   // create new path component
   if (component_length < 28) {
     // read string as-is if consuming <= 32 bytes in total
@@ -296,6 +336,7 @@ static int res_create_file_name(struct fuzzer_state *state)
       }
     }
   }
+#endif
   tmp_buf[component_length] = '\0';
 
   // attach the newly created component to the selected existing one
