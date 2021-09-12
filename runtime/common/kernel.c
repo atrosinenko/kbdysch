@@ -190,6 +190,7 @@ static void unmount_all(struct fuzzer_state *state) {
 
 static void mount_all(struct fuzzer_state *state)
 {
+  static bool first_time = true;
   if (state->constant_state.diskless)
     return;
 
@@ -228,10 +229,16 @@ static void mount_all(struct fuzzer_state *state)
 
       if (state->mutable_state.patch_was_invoked) {
         fprintf(stderr, "Exiting cleanly because PATCH was invoked previously.\n");
+        _exit(1);
+      } else if (!first_time && (ret == -EPERM || ret == -EACCES)) {
+        // Can occur due to dropped privileges
+        fprintf(stderr, "Permission denied on remount, exiting cleanly.\n");
+        _exit(1);
       } else {
         abort();
       }
     }
+    first_time = false;
 
     state->partitions[part].registered_fds[0] = -1; // -1 is an "invalid FD" for any partition
     state->partitions[part].registered_fds_count = 1;
