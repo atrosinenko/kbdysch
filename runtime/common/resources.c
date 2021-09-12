@@ -29,7 +29,8 @@ DECLARE_INT_KNOB(opt_max_file_name_length, "MAX_FILE_NAME_LENGTH");
 
 bool res_should_log_assignments(struct fuzzer_state *state)
 {
-  return state->constant_state.log_assigns;
+  return state->constant_state.log_assigns &&
+      !state->mutable_state.syscalls_inhibited;
 }
 
 jmp_buf *res_get_stopper_env(struct fuzzer_state *state)
@@ -423,7 +424,9 @@ void res_process_fd(struct fuzzer_state *state, const char *name, int reference,
   } else {
     LOG_RETURN("<ERR: %s>", STRERROR(state, value));
   }
-  state->partitions[part].registered_fds[state->partitions[part].registered_fds_count++] = value;
+  // Consuming FD here may clash with manually opened FD (say, for device file).
+  if (!state->mutable_state.syscalls_inhibited)
+    state->partitions[part].registered_fds[state->partitions[part].registered_fds_count++] = value;
 }
 
 void res_process_length(struct fuzzer_state *state, const char *name, uint64_t refLength, uint64_t length)
@@ -501,6 +504,7 @@ void res_close_all_fds(struct fuzzer_state *state)
     for (int i = 0; i < state->partitions[part].registered_fds_count; ++i) {
       INVOKE_SYSCALL(state, close, state->partitions[part].registered_fds[i]);
     }
-    state->partitions[part].registered_fds_count = 0;
+    state->partitions[part].registered_fds[0] = -1;
+    state->partitions[part].registered_fds_count = 1;
   }
 }
