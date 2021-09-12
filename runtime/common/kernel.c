@@ -484,6 +484,14 @@ size_t kernel_read_from_file(struct fuzzer_state *state, const char *filename, c
   return (size_t) res;
 }
 
+void kernel_dump_file_contents(struct fuzzer_state *state, const char *filename)
+{
+  static char contents[64 * 1024];
+  size_t length = kernel_read_from_file(state, filename, contents, sizeof(contents) - 1);
+  contents[length] = '\0';
+  fprintf(stderr, "=== Contents of %s ===\n%s\n", filename, contents);
+}
+
 void kernel_write_to_file(struct fuzzer_state *state, const char *filename, const void *data, size_t size, int write_may_fail)
 {
   fprintf(stderr, "Writing [%s] to %s... ", data, filename);

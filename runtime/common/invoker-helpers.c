@@ -53,3 +53,10 @@ size_t do_invoke(struct fuzzer_state *state, int block_index) {
           block_index, decoded_bytes);
   return decoded_bytes;
 }
+
+void print_summary_at_exit(struct fuzzer_state *state) {
+  size_t processed = res_get_cur_offset(state);
+  size_t total = res_get_input_length(state);
+  fprintf(stderr, "=== Decoded %zu bytes (%zu bytes left).\n",
+          processed, total - processed);
+}

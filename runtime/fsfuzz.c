@@ -49,6 +49,9 @@ int main(int argc, const char *argv[])
     }
   }
 
+  kernel_dump_file_contents(state, "/proc/mounts");
+  // TODO: Show detailed info such as /proc/fs/ext4/*/options
+
   res_load_whole_stdin(state);
 
   if (setjmp(*res_get_stopper_env(state)) == 0) {
@@ -59,9 +62,7 @@ int main(int argc, const char *argv[])
       align_next_block(state, block_index, decoded_bytes);
     }
   }
-  size_t processed = res_get_cur_offset(state);
-  size_t total = res_get_input_length(state);
-  fprintf(stderr, "--> Decoded %ld bytes (%ld bytes left).\n", processed, total - processed);
+  print_summary_at_exit(state);
 
   return 0;
 }

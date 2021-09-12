@@ -70,6 +70,7 @@ void kernel_setup_disk(struct fuzzer_state *state, const char *filename, const c
 void kernel_configure_diskless(struct fuzzer_state *state, const char *mpoint);
 void kernel_boot(struct fuzzer_state *state, const char *cmdline);
 size_t kernel_read_from_file(struct fuzzer_state *state, const char *filename, const void *data, size_t size);
+void kernel_dump_file_contents(struct fuzzer_state *state, const char *filename);
 void kernel_write_to_file(struct fuzzer_state *state, const char *filename, const void *data, size_t size, int write_may_fail);
 void kernel_write_string_to_file(struct fuzzer_state *state, const char *filename, const char *str, int write_may_fail);
 void kernel_invoke_write_to_file(struct fuzzer_state *state);
