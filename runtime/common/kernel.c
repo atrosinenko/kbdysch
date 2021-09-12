@@ -356,9 +356,17 @@ static void recurse_into_directory(struct fuzzer_state *state, int part, struct 
     inode_stack[inode_stack_size++] = dirent->d_ino;
 
     // is this a directory itself?
+#if LKL_HAS_STATX_SYSCALL
+    struct lkl_statx statxbuf = {};
+    int statx_err = INVOKE_SYSCALL(state, statx, AT_FDCWD, (long)file_scanner_tmp_buf, 0, STATX_MODE, (long)&statxbuf);
+    CHECK_INVOKER_ERRNO(state, statx_err);
+    unsigned st_mode = statxbuf.stx_mode;
+#else
     struct lkl_stat statbuf;
     CHECK_INVOKER_ERRNO(state, lkl_sys_stat(file_scanner_tmp_buf, &statbuf));
-    if (S_ISDIR(statbuf.st_mode)) {
+    unsigned st_mode = statbuf.st_mode;
+#endif
+    if (S_ISDIR(st_mode)) {
       int err;
       struct lkl_dir *dir_to_recurse = lkl_opendir(file_scanner_tmp_buf, &err);
       CHECK_THAT(dir_to_recurse != NULL);

@@ -11,6 +11,8 @@ union lkl_bpf_attr;
 #include <stdint.h>
 #include <memory.h>
 
+#define LKL_HAS_STATX_SYSCALL 1
+
 #define MAX_PART_COUNT 10
 
 #define MAX_INPUT_LEN (1 << 16)
