@@ -18,6 +18,7 @@
 *.o
 /runtime/generated/
 CMakeLists.txt.user
+CMakeLists.txt.user.*
 /generated-docs
 
 # Build-related stuff
