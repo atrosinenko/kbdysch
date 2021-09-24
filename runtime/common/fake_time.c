@@ -6,7 +6,7 @@
 
 #include "kbdysch.h"
 #include <stdint.h>
-#include <sys/time.h>
+#include <time.h>
 
 #undef clock_gettime
 #undef gettimeofday
@@ -14,31 +14,60 @@
 
 /* *** NO `#include`s BELOW THIS LINE *** */
 
-// Default = Jan 1 00:00:00 UTC 2021
-DECLARE_INT_KNOB_DEF(start_time, "START_TIME_SEC", 1609459200);
+// Start time = Jan 1 00:00:00 UTC 2021
+// Set it statically to prevent 50-year-long jump during initialization.
+// This jump makes libpth hang in `pth_scheduler_load` if its constructors
+// were called before `START_TIME` was initialized.
+const uint64_t START_TIME = 1609459200;
 DECLARE_INT_KNOB_DEF(increment_usec, "INCREMENT_USEC", 1000);
 
 static uint64_t current_offset_usec = 0;
 
-int gettimeofday(struct timeval *tv, struct timezone *tz) {
+static inline void tick() {
   current_offset_usec += increment_usec;
-  tv->tv_sec  = start_time + current_offset_usec / 1000000;
-  tv->tv_usec = current_offset_usec % 1000000;
+}
+
+static inline uint64_t monotonic_sec() {
+  return current_offset_usec / UINT64_C(1000000);
+}
+
+static inline uint64_t realtime_sec() {
+  return START_TIME + monotonic_sec();
+}
+
+static inline uint64_t usec() {
+  return current_offset_usec % UINT64_C(1000000);
+}
+
+int gettimeofday(struct timeval *tv, struct timezone *tz) {
+  tick();
+  tv->tv_sec  = realtime_sec();
+  tv->tv_usec = usec();
   return 0;
 }
 
 int clock_gettime(clockid_t clockid, struct timespec *tp) {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  tp->tv_sec  = tv.tv_sec;
-  tp->tv_nsec = tv.tv_usec * 1000;
+  tick();
+  switch (clockid) {
+  case CLOCK_REALTIME:
+    tp->tv_sec  = realtime_sec();
+    tp->tv_nsec = usec() * 1000;
+    break;
+  case CLOCK_MONOTONIC:
+    tp->tv_sec = monotonic_sec();
+    tp->tv_nsec = usec() * 1000;
+    break;
+  default:
+    fprintf(stderr, "Unhandled clockid: %d\n", clockid);
+    abort();
+  }
   return 0;
 }
 
 time_t time(time_t *tloc) {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
+  tick();
+  uint64_t result = realtime_sec();
   if (tloc)
-    *tloc = tv.tv_sec;
-  return tv.tv_sec;
+    *tloc = result;
+  return result;
 }
