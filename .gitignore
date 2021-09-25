@@ -16,6 +16,8 @@
 
 # C-related stuff
 *.o
+*.bc
+*.so
 /runtime/generated/
 CMakeLists.txt.user
 CMakeLists.txt.user.*
@@ -25,7 +27,6 @@ CMakeLists.txt.user.*
 /build/
 /build-*/
 /build.*/
-/liblkl.so
 /lkl-include
 
 # Misc
