@@ -80,6 +80,9 @@ void kernel_dump_file_names(struct fuzzer_state *state);
 void kernel_mk_char_devices(struct fuzzer_state *state);
 void dump_to_file(const char *dump_file_name, const void *data, size_t size);
 void start_forksrv(void);
+void spawn_thread(struct fuzzer_state *state, void *(*thread_fn)(void *),
+                  void *arg);
+void *alloc_target_pages(struct fuzzer_state *state, size_t size, int prot);
 
 typedef void (*stopper_func_t)(struct fuzzer_state *state);
 
@@ -136,6 +139,9 @@ void warn_lkl_not_supported(void);
     (is_native_invoker(state) ? \
         strerror(errno) : \
         LKL_STRERROR(returned_value_if_lkl))
+
+#define STRERROR_OR_POSITIVE(state, returned_value) \
+    ((returned_value) < 0 ? STRERROR(state, returned_value) : "No error")
 
 #define CHECK_THAT(x) check_that_impl((x), #x)
 #define CHECK_INVOKER_ERRNO(state, x) check_invoker_errno_impl((state), (x), #x)

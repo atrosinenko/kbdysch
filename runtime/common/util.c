@@ -3,12 +3,14 @@
 #include "internal-defs.h"
 
 #include <assert.h>
+#include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <time.h>
 #include <signal.h>
 #include <pth.h>
+#include <pthread.h>
 
 // Works better if FAKE_TIME is enabled.
 DECLARE_INT_KNOB(hang_iters, "HANG_ITERS")
@@ -44,6 +46,26 @@ static void start_lowest_prio_exiter(void) {
   pth_attr_init(attr);
   CHECK_THAT(pth_attr_set(attr, PTH_ATTR_PRIO, PTH_PRIO_MIN));
   pth_spawn(attr, exiter_thread_fn, NULL);
+}
+
+void spawn_thread(struct fuzzer_state *state, void *(*thread_fn)(void *),
+                  void *arg) {
+  if (is_native_invoker(state)) {
+    // For now, just use native Pthreads when executing on native kernel
+    pthread_t thread;
+    pthread_create(&thread, NULL, thread_fn, state);
+  } else {
+    pth_attr_t attr = pth_attr_new();
+    pth_attr_init(attr);
+    CHECK_THAT(pth_attr_set(attr, PTH_ATTR_STACK_SIZE, 1024 * 1024));
+    pth_spawn(attr, thread_fn, arg);
+  }
+}
+
+void *alloc_target_pages(struct fuzzer_state *state, size_t size, int prot) {
+  long result = INVOKE_SYSCALL(state, mmap, (long)NULL, size, prot,
+                               (long)(MAP_PRIVATE | MAP_ANONYMOUS), (long)-1, (long)0);
+  return (void *)result;
 }
 
 void start_forksrv(void)

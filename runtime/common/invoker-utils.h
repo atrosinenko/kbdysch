@@ -124,6 +124,8 @@ void res_copy_bytes(struct fuzzer_state *state, void *ptr, size_t size);
  */
 int64_t res_get_integer_from_range(struct fuzzer_state *state, const char *name, int64_t min, int64_t max);
 
+void set_fd_guard(struct fuzzer_state *state, int max_fd);
+
 /**
  * @brief Generates a file descriptor number
  *

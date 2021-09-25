@@ -24,6 +24,7 @@ include(common/Helpers.cmake)
 
 RegisterInvoker(fs)
 RegisterHarnessWithInvoker(fsfuzz fs)
+RegisterHarnessWithInvoker(fusefuzz fs)
 RegisterHarness(bpffuzz)
 RegisterHarness(hidfuzz)
 RegisterHarness(partfuzz)

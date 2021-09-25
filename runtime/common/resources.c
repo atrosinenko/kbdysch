@@ -360,11 +360,18 @@ void res_fill_file_name(struct fuzzer_state *state, const char *name, char *valu
   LOG_ASSIGN("%s (index %d)", value, index_for_result);
 }
 
+void set_fd_guard(struct fuzzer_state *state, int max_fd)
+{
+  state->current_state.guarded_fds = max_fd;
+}
+
 int res_get_fd(struct fuzzer_state *state, const char *name)
 {
   int cur_part = state->mutable_state.current_part;
   uint16_t ind = res_get_u16(state) % state->partitions[cur_part].registered_fds_count;
   int result = state->partitions[cur_part].registered_fds[ind];
+  if (result <= state->current_state.guarded_fds)
+    result = -1;
   LOG_ASSIGN("<FD: %d>", result);
   return result;
 }

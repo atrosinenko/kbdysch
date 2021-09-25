@@ -16,7 +16,7 @@ if (FAKE_TIME)
 endif()
 
 target_include_directories(common_lib PUBLIC ${PROJECT_SOURCE_DIR}/common)
-target_link_libraries(common_lib -lpth -lrt)
+target_link_libraries(common_lib -lpth -lrt -pthread)
 
 add_library(invoker_lib STATIC
   invoker-helpers.c
