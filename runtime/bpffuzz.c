@@ -137,6 +137,29 @@ static size_t preprocess_program(struct bpf_insn insns[], size_t insn_count,
   return insn_count;
 }
 
+static void trigger_lazy_initialization(struct fuzzer_state *state) {
+  // BTF, etc.
+  struct bpf_insn ret0[] = {
+    { .code = 0xb7, }, // r0 = 0
+    { .code = 0x95, }, // exit
+  };
+  union bpf_attr load_attr = {
+    .prog_type = BPF_PROG_TYPE_SOCKET_FILTER,
+    .insn_cnt  = 2,
+    .insns     = (uint64_t) ret0,
+    .license   = (uint64_t) "GPL",
+    .log_level = 7,
+    .log_size  = BPF_LOG_BUF_LEN,
+    .log_buf   = (uint64_t) bpf_log_buf,
+  };
+  ZERO_FILL_AFTER(load_attr, log_buf);
+  int bpffd = INVOKE_SYSCALL(state, bpf, BPF_PROG_LOAD, (long)&load_attr, sizeof(load_attr));
+  fprintf(stderr, "%s\n", bpf_log_buf);
+  CHECK_THAT(bpffd >= 0);
+  INVOKE_SYSCALL(state, close, bpffd);
+  bpf_log_buf[0] = '\0';
+}
+
 int main(int argc, const char *argv[])
 {
   show_help_and_exit_if_needed(
@@ -150,6 +173,8 @@ int main(int argc, const char *argv[])
   if (!is_native_invoker(state)) {
     kernel_boot(state, argv[1]);
   }
+
+  trigger_lazy_initialization(state);
 
   if (!as_root)
     CHECK_THAT(INVOKE_SYSCALL(state, setreuid, 0L, 1L) == 0);
