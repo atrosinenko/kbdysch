@@ -9,7 +9,7 @@
 /**
  * @brief Whether invoker should log assigned and returned values to stderr
  */
-bool res_should_log_assignments(struct fuzzer_state *state);
+bool res_should_log_assignments(const struct fuzzer_state *state);
 
 #define LOG_ASSIGN(fmt, ...) \
   if (res_should_log_assignments(state) && name) { \
@@ -39,7 +39,7 @@ void res_load_whole_stdin(struct fuzzer_state *state);
 /**
  * @brief Sets the previously loaded fuzzer input
  */
-void res_set_input_data(struct fuzzer_state *state, uint8_t *data, size_t size);
+void res_set_input_data(struct fuzzer_state *state, const uint8_t *data, size_t size);
 
 jmp_buf *res_get_stopper_env(struct fuzzer_state *state);
 
@@ -61,12 +61,7 @@ void res_restore_state(struct fuzzer_state *state, int for_partiton);
 /**
  * @brief Returns the total configured partition count
  */
-int res_get_part_count(struct fuzzer_state *state);
-
-/**
- * @brief Whether this fuzzer if configured to invoke syscalls on host kernel or not
- */
-int res_is_native_invoker(struct fuzzer_state *state);
+int res_get_part_count(const struct fuzzer_state *state);
 
 /**
  * @brief Returns current offset in the fuzzer input data (for debug purposes)

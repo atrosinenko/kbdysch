@@ -118,16 +118,16 @@ void stop_processing(struct fuzzer_state *state) {
   state->stopper_func(state);
 }
 
-bool is_native_invoker(struct fuzzer_state *state)
+bool is_native_invoker(const struct fuzzer_state *state)
 {
   return state->constant_state.native_mode;
 }
 
-int get_num_errors_returned(struct fuzzer_state *state) {
+int get_num_errors_returned(const struct fuzzer_state *state) {
   return state->current_state.num_errors_returned;
 }
 
-bool syscalls_inhibited(struct fuzzer_state *state) {
+bool syscalls_inhibited(const struct fuzzer_state *state) {
   return state->mutable_state.syscalls_inhibited;
 }
 

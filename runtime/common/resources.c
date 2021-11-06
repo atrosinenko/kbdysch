@@ -27,7 +27,7 @@ DECLARE_BOOL_KNOB(simple_file_names, "SIMPLE_NAMES")
 DECLARE_BOOL_KNOB(fault_is_ok, "FAULT_IS_OK")
 DECLARE_INT_KNOB(opt_max_file_name_length, "MAX_FILE_NAME_LENGTH");
 
-bool res_should_log_assignments(struct fuzzer_state *state)
+bool res_should_log_assignments(const struct fuzzer_state *state)
 {
   return state->constant_state.log_assigns &&
       !state->mutable_state.syscalls_inhibited;
@@ -38,7 +38,7 @@ jmp_buf *res_get_stopper_env(struct fuzzer_state *state)
   return &state->stopper;
 }
 
-void res_set_input_data(struct fuzzer_state *state, uint8_t *data, size_t size)
+void res_set_input_data(struct fuzzer_state *state, const uint8_t *data, size_t size)
 {
   if (size > MAX_INPUT_LEN) {
     fprintf(stderr, "Trying to set %zu input bytes, truncating.\n", size);
@@ -77,7 +77,7 @@ static uint64_t res_rand(struct fuzzer_state *state)
   return state->current_state.rng_state >> 1; // so, may be even
 }
 
-int res_get_part_count(struct fuzzer_state *state)
+int res_get_part_count(const struct fuzzer_state *state)
 {
   return state->constant_state.part_count;
 }

@@ -95,11 +95,11 @@ struct fuzzer_state *create_state(int argc, const char *argv[], stopper_func_t s
 
 void stop_processing(struct fuzzer_state *state);
 
-bool is_native_invoker(struct fuzzer_state *state);
+bool is_native_invoker(const struct fuzzer_state *state);
 
-int get_num_errors_returned(struct fuzzer_state *state);
+int get_num_errors_returned(const struct fuzzer_state *state);
 
-bool syscalls_inhibited(struct fuzzer_state *state);
+bool syscalls_inhibited(const struct fuzzer_state *state);
 void inhibit_syscalls(struct fuzzer_state *state, bool inhibited);
 
 static inline long lkl_exit_wrapper(long result)
