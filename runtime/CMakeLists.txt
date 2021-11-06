@@ -1,12 +1,12 @@
-cmake_minimum_required(VERSION 3.0)
-project(kbdysch)
-
 option(USE_LKL          "Link with LKL (otherwise just build invokers for the host kernel)" ON)
 option(USE_INVOKERS     "Build fuzzers that require invokers to be generated first" ON)
 option(FAKE_TIME        "Report fake time values to Pth, LKL, etc. to increase the stability" ON)
 option(USE_COMPACT_ENCODING "Read more compact descriptions when generating strings and buffer contents" ON)
 set(   LKL_INCLUDE_PATH "${PROJECT_BINARY_DIR}/lkl-include" CACHE STRING "Full path to the tools/lkl/include of LKL build")
 set(   LKL_LIB_PATH     "${PROJECT_BINARY_DIR}/liblkl.so"   CACHE STRING "Full path to LKL library file")
+
+set(GENERATED_INVOKER_DIR "${CMAKE_CURRENT_LIST_DIR}/generated")
+include_directories(include)
 
 if (USE_LKL)
     link_libraries(${LKL_LIB_PATH})

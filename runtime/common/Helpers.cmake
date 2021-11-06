@@ -2,9 +2,8 @@
 function(RegisterInvoker name)
   if (USE_INVOKERS)
     add_library("invoker_${name}" STATIC
-      "${PROJECT_SOURCE_DIR}/generated/invoker-${name}.c")
-    target_include_directories("invoker_${name}" PRIVATE
-      "${PROJECT_SOURCE_DIR}/common")
+      "${GENERATED_INVOKER_DIR}/invoker-${name}.c")
+    target_link_libraries("invoker_${name}" invoker_lib)
     # FIXME: Remove after fixing code generator
     target_compile_options("invoker_${name}" PRIVATE
       -Wno-incompatible-pointer-types)
