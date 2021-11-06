@@ -43,9 +43,9 @@ void align_next_block(struct fuzzer_state *state, int block_index,
 }
 
 size_t do_invoke(struct fuzzer_state *state, int block_index) {
-  uint8_t opcode = res_get_u8(state);
   size_t old_offset = res_get_cur_offset(state);
-  fprintf(stderr, "==> [%03d] Decoding at offset %zu, opcode = %u...\n",
+  uint8_t opcode = res_get_u8(state);
+  fprintf(stderr, "==> [%03d] Decoding at offset %zu, opcode = 0x%02x...\n",
           block_index, old_offset, (unsigned)opcode);
   invoke_next_op(state, opcode);
   size_t decoded_bytes = res_get_cur_offset(state) - old_offset;
