@@ -183,7 +183,7 @@ static void unmount_all(struct fuzzer_state *state) {
       // TODO
       fprintf(stderr, "WARN: cannot unmount #%d, type = %s (%s), just exiting...\n",
               part, partition->fstype, lkl_strerror(ret));
-      exit(1);
+      stop_processing(state);
     }
   }
 }
@@ -229,11 +229,11 @@ static void mount_all(struct fuzzer_state *state)
 
       if (state->mutable_state.patch_was_invoked) {
         fprintf(stderr, "Exiting cleanly because PATCH was invoked previously.\n");
-        _exit(1);
+        stop_processing(state);
       } else if (!first_time && (ret == -EPERM || ret == -EACCES)) {
         // Can occur due to dropped privileges
         fprintf(stderr, "Permission denied on remount, exiting cleanly.\n");
-        _exit(1);
+        stop_processing(state);
       } else {
         abort();
       }
@@ -414,7 +414,7 @@ void kernel_perform_remount(struct fuzzer_state *state)
 {
   if (state->constant_state.native_mode) {
     fprintf(stderr, "REMOUNT requested in native mode, exiting.\n");
-    exit(1);
+    stop_processing(state);
   }
 #ifdef USE_LKL
   unmount_all(state);
@@ -426,15 +426,15 @@ void kernel_perform_patching(struct fuzzer_state *state)
 {
   if (state->constant_state.native_mode) {
     fprintf(stderr, "PATCH requested in native mode, exiting.\n");
-    exit(1);
+    stop_processing(state);
   }
   if (state->constant_state.part_count > 1) {
     fprintf(stderr, "PATCH requested in comparison mode, exiting.\n");
-    exit(1);
+    stop_processing(state);
   }
   if (no_patch) {
     fprintf(stderr, "PATCH requested, but is explicitly disabled, exiting.\n");
-    exit(1);
+    stop_processing(state);
   }
 
 #ifdef USE_LKL
