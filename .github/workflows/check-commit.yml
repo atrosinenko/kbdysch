@@ -25,6 +25,6 @@ jobs:
       - name: Generate invokers
         run: ./update_invokers.sh
       - name: Run CMake
-        run: cmake -S ./runtime -B ./build -DUSE_LKL=OFF
+        run: cmake -S . -B ./build -DUSE_LKL=OFF
       - name: Build harnesses
         run: cmake --build ./build
