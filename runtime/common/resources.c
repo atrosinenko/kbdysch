@@ -27,12 +27,6 @@ DECLARE_BOOL_KNOB(simple_file_names, "SIMPLE_NAMES")
 DECLARE_BOOL_KNOB(fault_is_ok, "FAULT_IS_OK")
 DECLARE_INT_KNOB(opt_max_file_name_length, "MAX_FILE_NAME_LENGTH");
 
-bool res_should_log_assignments(const struct fuzzer_state *state)
-{
-  return state->constant_state.log_assigns &&
-      !state->mutable_state.syscalls_inhibited;
-}
-
 jmp_buf *res_get_stopper_env(struct fuzzer_state *state)
 {
   return &state->stopper;
@@ -41,12 +35,12 @@ jmp_buf *res_get_stopper_env(struct fuzzer_state *state)
 void res_set_input_data(struct fuzzer_state *state, const uint8_t *data, size_t size)
 {
   if (size > MAX_INPUT_LEN) {
-    fprintf(stderr, "Trying to set %zu input bytes, truncating.\n", size);
+    WARN(state, "Trying to set %zu input bytes, truncating.", size);
     size = MAX_INPUT_LEN;
   }
   memcpy(state->constant_state.input_buffer, data, size);
   state->constant_state.length = size;
-  fprintf(stderr, "Loaded %zu bytes of input.\n", size);
+  TRACE(state, "Loaded %zu bytes of input.", size);
 }
 
 void res_load_whole_stdin(struct fuzzer_state *state)
@@ -57,7 +51,7 @@ void res_load_whole_stdin(struct fuzzer_state *state)
     perror("Cannot read input from stdin");
     abort();
   }
-  fprintf(stderr, "Read %zu bytes of input (max %u).\n", state->constant_state.length, MAX_INPUT_LEN);
+  TRACE(state, "Read %zu bytes of input (max %u).", state->constant_state.length, MAX_INPUT_LEN);
 }
 
 void res_save_state(struct fuzzer_state *state)
@@ -380,10 +374,10 @@ static void crash_on_difference_int(struct fuzzer_state *state, const char *desc
 {
   if (ref != val) {
     int part = state->mutable_state.current_part;
-    fprintf(stderr, "%s:\n", descr);
-    fprintf(stderr, "  Name = %s\n", name);
-    fprintf(stderr, "  [%s] \t %zu\n", state->partitions[0].fstype, ref);
-    fprintf(stderr, "  [%s] \t %zu\n", state->partitions[part].fstype, val);
+    LOG_FATAL("%s:", descr);
+    LOG_FATAL("  Name = %s", name);
+    LOG_FATAL("  [%s] \t %zu", state->partitions[0].fstype, ref);
+    LOG_FATAL("  [%s] \t %zu", state->partitions[part].fstype, val);
     abort();
   }
 }
@@ -397,19 +391,19 @@ void res_process_integer(struct fuzzer_state *state, const char *name, uint64_t 
 void res_process_errno(struct fuzzer_state *state, const char *name, uint64_t reference, int64_t value)
 {
   if (value == -EFAULT && !fault_is_ok) {
-    fprintf(stderr, "EFAULT is returned as %s. Possible reasons:\n", name);
-    fprintf(stderr, "  * some buffers should be specifically aligned (at page boundary, for example)\n");
-    fprintf(stderr, "  * some buffers should be allocated using \"guest\" mmap()\n");
-    fprintf(stderr, "Try adjusting invoker description or specify FAULT_IS_OK knob.\n");
+    LOG_FATAL("EFAULT is returned as %s. Possible reasons:", name);
+    LOG_FATAL("  * some buffers should be specifically aligned (at page boundary, for example)");
+    LOG_FATAL("  * some buffers should be allocated using \"guest\" mmap()");
+    LOG_FATAL("Try adjusting invoker description or specify FAULT_IS_OK knob.");
     abort();
   }
   if (value < 0)
     state->current_state.num_errors_returned += 1;
   if (!ignore_invalid_errno && value < 0 && !is_native_invoker(state) &&
       STRERROR(state, (int)value) == STRERROR(state, 100500)) {
-    fprintf(stderr, "Invalid errno:\n");
-    fprintf(stderr, "  Name = %s\n", name);
-    fprintf(stderr, "  [%s] \t %d\n", state->partitions[state->mutable_state.current_part].fstype, errno);
+    LOG_FATAL("Invalid errno:");
+    LOG_FATAL("  Name = %s", name);
+    LOG_FATAL("  [%s] \t %d", state->partitions[state->mutable_state.current_part].fstype, errno);
     abort();
   }
   LOG_RETURN("%s", STRERROR(state, (int)value));
@@ -420,10 +414,10 @@ void res_process_fd(struct fuzzer_state *state, const char *name, int reference,
 {
   int part = state->mutable_state.current_part;
   if ((reference < 0) != (value < 0)) {
-    fprintf(stderr, "Returned FDs are inconsistent:\n");
-    fprintf(stderr, "  Name = %s\n", name);
-    fprintf(stderr, "  [%s] \t %d\n", state->partitions[0].fstype, reference);
-    fprintf(stderr, ", [%s] \t %d\n", state->partitions[part].fstype, value);
+    LOG_FATAL("Returned FDs are inconsistent:");
+    LOG_FATAL("  Name = %s", name);
+    LOG_FATAL("  [%s] \t %d", state->partitions[0].fstype, reference);
+    LOG_FATAL(", [%s] \t %d", state->partitions[part].fstype, value);
     abort();
   }
   if (value >= 0) {
@@ -446,13 +440,13 @@ void res_process_buffer(struct fuzzer_state *state, const char *name, buffer_t r
 {
   assert(refLength == length);
   if (memcmp(buf + length, reference_watermark, WATERMARK_SIZE) != 0) {
-    fprintf(stderr, "Corrupted buffer watermark:\n");
-    fprintf(stderr, "  Name = %s\n", name);
-    fprintf(stderr, "  Buffer size = %zu\n", length);
-    fprintf(stderr, "  Reference: %02x %02x %02x %02x...\n",
-            reference_watermark[0], reference_watermark[1], reference_watermark[2], reference_watermark[3]);
-    fprintf(stderr, "  Actual:    %02x %02x %02x %02x...\n",
-            buf[length], buf[length + 1], buf[length + 2], buf[length + 3]);
+    LOG_FATAL("Corrupted buffer watermark:");
+    LOG_FATAL("  Name = %s", name);
+    LOG_FATAL("  Buffer size = %zu", length);
+    LOG_FATAL("  Reference: %02x %02x %02x %02x...",
+              reference_watermark[0], reference_watermark[1], reference_watermark[2], reference_watermark[3]);
+    LOG_FATAL("  Actual:    %02x %02x %02x %02x...",
+              buf[length], buf[length + 1], buf[length + 2], buf[length + 3]);
     abort();
   }
   if (refBuf != buf && memcmp(refBuf, buf, length) != 0) {
@@ -463,11 +457,11 @@ void res_process_buffer(struct fuzzer_state *state, const char *name, buffer_t r
         break;
     }
     int part = state->mutable_state.current_part;
-    fprintf(stderr, "Returned buffers differ:\n");
-    fprintf(stderr, "  Name = %s\n", name);
-    fprintf(stderr, "  Position = %zu\n", ind);
-    fprintf(stderr, "  [%s] \t %02x\n", state->partitions[0].fstype, refBuf[ind] & 0xff);
-    fprintf(stderr, "  [%s] \t %02x\n", state->partitions[part].fstype, buf[ind] & 0xff);
+    LOG_FATAL("Returned buffers differ:");
+    LOG_FATAL("  Name = %s", name);
+    LOG_FATAL("  Position = %zu", ind);
+    LOG_FATAL("  [%s] \t %02x", state->partitions[0].fstype, refBuf[ind] & 0xff);
+    LOG_FATAL("  [%s] \t %02x", state->partitions[part].fstype, buf[ind] & 0xff);
     abort();
   }
 }
@@ -481,10 +475,10 @@ void res_process_string(struct fuzzer_state *state, const char *name, const char
 {
   if (reference != value && strncmp(reference, value, MAX_STRING_LEN) != 0) {
     int part = state->mutable_state.current_part;
-    fprintf(stderr, "Returned strings differ:\n");
-    fprintf(stderr, "  Name = %s\n", name);
-    fprintf(stderr, "  [%s] \t %s\n", state->partitions[0].fstype, reference);
-    fprintf(stderr, "  [%s] \t %s\n", state->partitions[part].fstype, value);
+    LOG_FATAL("Returned strings differ:");
+    LOG_FATAL("  Name = %s", name);
+    LOG_FATAL("  [%s] \t %s", state->partitions[0].fstype, reference);
+    LOG_FATAL("  [%s] \t %s", state->partitions[part].fstype, value);
     abort();
   }
   LOG_RETURN("%s", value);
@@ -496,10 +490,10 @@ int res_need_recurse_into_pointees(struct fuzzer_state *state, const char *name,
   // since there can be generic validation apart from comparison
   if ((reference == NULL) != (value == NULL)) {
     int part = state->mutable_state.current_part;
-    fprintf(stderr, "Returned pointers are inconsistent:\n");
-    fprintf(stderr, "  Name = %s\n", name);
-    fprintf(stderr, "  [%s] \t %p\n", state->partitions[0].fstype, reference);
-    fprintf(stderr, "  [%s] \t %p\n", state->partitions[part].fstype, value);
+    LOG_FATAL("Returned pointers are inconsistent:");
+    LOG_FATAL("  Name = %s", name);
+    LOG_FATAL("  [%s] \t %p", state->partitions[0].fstype, reference);
+    LOG_FATAL("  [%s] \t %p", state->partitions[part].fstype, value);
     abort();
   }
   return value != NULL;

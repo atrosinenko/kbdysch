@@ -109,9 +109,10 @@ void kernel_setup_disk(struct fuzzer_state *state, const char *filename, const c
 
   int image_fd = open(filename, O_RDONLY);
   if(image_fd == -1) {
-      fprintf(stderr, "Cannot open '%s': %s\n", filename, strerror(errno));
-      abort();
+    LOG_FATAL("Cannot open '%s': %s", filename, strerror(errno));
+    abort();
   }
+
   off_t size = lseek(image_fd, 0, SEEK_END);
   if (size == (off_t)-1) {
     perror("setup_disk: cannot get disk size");
@@ -122,20 +123,20 @@ void kernel_setup_disk(struct fuzzer_state *state, const char *filename, const c
   strncpy(partition->fstype, fstype, sizeof(partition->fstype));
 
   // First, try with HugeTLB enabled to speed up forkserver
-  fprintf(stderr, "Loading %s with HugeTLB... ", filename);
+  TRACE_NO_NL(state, "Loading %s with HugeTLB... ", filename);
   partition->data = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
   if (partition->data != MAP_FAILED) {
-    fprintf(stderr, "OK\n");
+    TRACE(state, "OK");
     CHECK_THAT(pread(image_fd, partition->data, size, 0) == size);
   } else {
-    fprintf(stderr, "FAILED (%s)\n", strerror(errno));
-    fprintf(stderr, "Loading %s without HugeTLB... ", filename);
+    WARN(state, "Cannot load %s with HugeTLB: %s", filename, strerror(errno));
+    TRACE_NO_NL(state, "Loading %s without HugeTLB... ", filename);
     partition->data = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE, image_fd, 0);
     if (partition->data == MAP_FAILED) {
-      fprintf(stderr, "FAILED (%s)", strerror(errno));
+      LOG_FATAL("Cannot load %s: %s", filename, strerror(errno));
       abort();
     } else {
-      fprintf(stderr, "OK\n");
+      TRACE(state, "OK");
     }
   }
   close(image_fd);
@@ -168,7 +169,7 @@ static void unmount_all(struct fuzzer_state *state) {
     return;
 
   CHECK_THAT(!state->constant_state.native_mode);
-  fprintf(stderr, "Unmounting all...\n");
+  TRACE(state, "Unmounting all...");
 
   res_close_all_fds(state);
 
@@ -181,8 +182,8 @@ static void unmount_all(struct fuzzer_state *state) {
     int ret = lkl_umount_dev(partition->disk_id, 0, 0, 1);
     if (ret) {
       // TODO
-      fprintf(stderr, "WARN: cannot unmount #%d, type = %s (%s), just exiting...\n",
-              part, partition->fstype, lkl_strerror(ret));
+      WARN(state, "Cannot unmount #%d, type = %s (%s), just exiting...",
+           part, partition->fstype, lkl_strerror(ret));
       stop_processing(state);
     }
   }
@@ -198,7 +199,7 @@ static void mount_all(struct fuzzer_state *state)
 
   kernel_dump_all_pertitions_if_requested(state);
 
-  fprintf(stderr, "Mounting all...\n");
+  TRACE(state, "Mounting all...");
 
   for (int part = 0; part < state->constant_state.part_count; ++part)
   {
@@ -224,15 +225,15 @@ static void mount_all(struct fuzzer_state *state)
       MOUNT_POINT_LEN);
 
     if (ret) {
-      fprintf(stderr, "Cannot mount partition #%d, type = %s: %s\n",
-              part, partition->fstype, lkl_strerror(ret));
+      WARN(state, "Cannot mount partition #%d, type = %s: %s",
+           part, partition->fstype, lkl_strerror(ret));
 
       if (state->mutable_state.patch_was_invoked) {
-        fprintf(stderr, "Exiting cleanly because PATCH was invoked previously.\n");
+        WARN(state, "Exiting cleanly because PATCH was invoked previously.");
         stop_processing(state);
       } else if (!first_time && (ret == -EPERM || ret == -EACCES)) {
         // Can occur due to dropped privileges
-        fprintf(stderr, "Permission denied on remount, exiting cleanly.\n");
+        WARN(state, "Permission denied on remount, exiting cleanly.");
         stop_processing(state);
       } else {
         abort();
@@ -243,8 +244,8 @@ static void mount_all(struct fuzzer_state *state)
     state->partitions[part].registered_fds[0] = -1; // -1 is an "invalid FD" for any partition
     state->partitions[part].registered_fds_count = 1;
 
-    fprintf(stderr, "Successfully mounted partition #%d, type = %s\n",
-            part, partition->fstype);
+    TRACE(state, "Successfully mounted partition #%d, type = %s",
+          part, partition->fstype);
   }
 }
 
@@ -292,10 +293,10 @@ static void patch_one(struct fuzzer_state *state, partition_t *partition)
   }
   memcpy(patch_destination, &patched_data, patch_size);
 
-  fprintf(stderr, "Patching at 0x%zx, size = %d: 0x%lx -> 0x%lx (op = 0x%02x, arg = 0x%x)\n",
-          partition_offset, patch_size,
-          original_data, patched_data,
-          op & 0xff, arg);
+  TRACE(state, "Patching at 0x%zx, size = %d: 0x%lx -> 0x%lx (op = 0x%02x, arg = 0x%x)",
+        partition_offset, patch_size,
+        original_data, patched_data,
+        op & 0xff, arg);
 }
 
 static void my_printk(const char *msg, int len)
@@ -413,7 +414,7 @@ void kernel_configure_diskless(struct fuzzer_state *state, const char *mpoint)
 void kernel_perform_remount(struct fuzzer_state *state)
 {
   if (state->constant_state.native_mode) {
-    fprintf(stderr, "REMOUNT requested in native mode, exiting.\n");
+    WARN(state, "REMOUNT requested in native mode, exiting.");
     stop_processing(state);
   }
 #ifdef USE_LKL
@@ -425,15 +426,15 @@ void kernel_perform_remount(struct fuzzer_state *state)
 void kernel_perform_patching(struct fuzzer_state *state)
 {
   if (state->constant_state.native_mode) {
-    fprintf(stderr, "PATCH requested in native mode, exiting.\n");
+    WARN(state, "PATCH requested in native mode, exiting.");
     stop_processing(state);
   }
   if (state->constant_state.part_count > 1) {
-    fprintf(stderr, "PATCH requested in comparison mode, exiting.\n");
+    WARN(state, "PATCH requested in comparison mode, exiting.");
     stop_processing(state);
   }
   if (no_patch) {
-    fprintf(stderr, "PATCH requested, but is explicitly disabled, exiting.\n");
+    WARN(state, "PATCH requested, but is explicitly disabled, exiting.");
     stop_processing(state);
   }
 
@@ -445,7 +446,7 @@ void kernel_perform_patching(struct fuzzer_state *state)
     return;
 
   const int count = res_get_u8(state) % 32;
-  fprintf(stderr, "PATCH count requested = %d\n", count);
+  TRACE(state, "PATCH count requested = %d", count);
   unmount_all(state);
   state->mutable_state.patch_was_invoked = true;
   patching_was_performed = true;
@@ -459,7 +460,7 @@ void kernel_perform_patching(struct fuzzer_state *state)
 void kernel_boot(struct fuzzer_state *state, const char *cmdline)
 {
   if (state->constant_state.native_mode) {
-    fprintf(stderr, "Refusing to boot LKL in native mode!\n");
+    LOG_FATAL("Refusing to boot LKL in native mode!");
     abort();
   }
 #ifdef USE_LKL
@@ -489,18 +490,18 @@ void kernel_dump_file_contents(struct fuzzer_state *state, const char *filename)
   static char contents[64 * 1024];
   size_t length = kernel_read_from_file(state, filename, contents, sizeof(contents) - 1);
   contents[length] = '\0';
-  fprintf(stderr, "=== Contents of %s ===\n%s\n", filename, contents);
+  TRACE(state, "=== Contents of %s ===\n%s", filename, contents);
 }
 
 void kernel_write_to_file(struct fuzzer_state *state, const char *filename, const void *data, size_t size, int write_may_fail)
 {
-  fprintf(stderr, "Writing [%s] to %s... ", data, filename);
+  TRACE_NO_NL(state, "Writing [%s] to %s... ", data, filename);
   int len = strlen(data);
   int fd = INVOKE_SYSCALL(state, openat, AT_FDCWD, (long)filename, O_WRONLY, 0);
   CHECK_THAT(fd >= 0);
   CHECK_THAT(INVOKE_SYSCALL(state, write, fd, (long)data, len) == len || write_may_fail);
   INVOKE_SYSCALL(state, close, fd);
-  fprintf(stderr, "OK\n");
+  TRACE(state, "OK");
 }
 
 void kernel_write_string_to_file(struct fuzzer_state *state, const char *filename, const char *str, int write_may_fail)
@@ -529,13 +530,13 @@ void kernel_invoke_write_to_file(struct fuzzer_state *state)
   int do_write_number = selector == 0;
   int do_write_word = selector == 1;
 
-  fprintf(stderr, "Opening %s...\n", path_name);
+  TRACE(state, "Opening %s...", path_name);
   fd = INVOKE_SYSCALL(state, openat, AT_FDCWD, (long)path_name, do_write_word ? O_RDWR : O_WRONLY, 0);
   if (fd < 0) {
-    fprintf(stderr, "  FAIL\n");
+    WARN(state, "  Cannot open %s: %s", path_name, STRERROR(state, fd));
     return;
   } else {
-    fprintf(stderr, "  FD = %d\n", fd);
+    TRACE(state, "  FD = %d", fd);
   }
 
   if (do_write_number) {
@@ -546,7 +547,7 @@ void kernel_invoke_write_to_file(struct fuzzer_state *state)
       inlen -= 1;
     }
     iobuf[inlen] = '\0';
-    fprintf(stderr, "  Read [%s].\n", iobuf);
+    TRACE(state, "  Read [%s].", iobuf);
 
     int break_count = 0;
     break_indexes[break_count++] = -1;
@@ -565,7 +566,7 @@ void kernel_invoke_write_to_file(struct fuzzer_state *state)
     res_copy_bytes(state, iobuf, outlen);
   }
   iobuf[outlen] = '\0';
-  fprintf(stderr, "  Writing [%s]...\n", iobuf);
+  TRACE(state, "  Writing [%s]...", iobuf);
 
   INVOKE_SYSCALL(state, write, fd, (long)iobuf, outlen);
   INVOKE_SYSCALL(state, close, fd);
@@ -594,28 +595,28 @@ int kernel_open_device_by_sysfs_name(struct fuzzer_state *state, const char *nam
     sprintf(dev_name, "/%s", name);
   }
 
-  fprintf(stderr, "Opening the device %s as %s...\n", sysfs_name, dev_name);
+  TRACE(state, "Opening the device %s as %s...", sysfs_name, dev_name);
 
   // read device ID as string
   size_t sysfs_read_size = kernel_read_from_file(state, sysfs_name, device_id_str, sizeof(device_id_str) - 1);
   device_id_str[sysfs_read_size] = 0;
-  fprintf(stderr, "  sysfs returned: %s\n", device_id_str);
+  TRACE(state, "  sysfs returned: %s", device_id_str);
 
   // parse string ID
   parse_device_id(device_id_str, &major, &minor);
-  fprintf(stderr, "  parsed as: major = %d, minor = %d\n", major, minor);
+  TRACE(state, "  parsed as: major = %d, minor = %d", major, minor);
 
   // crete device file
   dev_t dev = makedev(major, minor);
   int mknod_result = INVOKE_SYSCALL(state, mknodat, AT_FDCWD, (long)dev_name, dev_kind | S_IRUSR | S_IWUSR, dev);
   CHECK_INVOKER_ERRNO(state, mknod_result);
-  fprintf(stderr, "  created device file: %s\n", dev_name);
+  TRACE(state, "  created device file: %s", dev_name);
 
   // open the just created device
   int fd = INVOKE_SYSCALL(state, openat, AT_FDCWD, (long)dev_name, O_RDWR);
   CHECK_THAT(fd >= 0);
-  fprintf(stderr, "  opened as fd = %d\n", fd);
-  fprintf(stderr, "  DONE\n");
+  TRACE(state, "  opened as fd = %d", fd);
+  TRACE(state, "  DONE");
 
   return fd;
 }
@@ -624,7 +625,7 @@ int kernel_open_device_by_sysfs_name(struct fuzzer_state *state, const char *nam
 int kernel_scan_for_files(struct fuzzer_state *state, int part)
 {
   if (state->constant_state.native_mode) {
-    fprintf(stderr, "Scanning files in a native mode makes little sense and anyway seems like a bad idea, exiting.\n");
+    WARN(state, "Scanning files in a native mode makes little sense and anyway seems like a bad idea, exiting.");
     exit(1);
   }
 
@@ -651,7 +652,7 @@ int kernel_scan_for_files(struct fuzzer_state *state, int part)
 void kernel_dump_file_names(struct fuzzer_state *state)
 {
   for (int i = 0; i < state->current_state.file_name_count; ++i) {
-    fprintf(stderr, "  %s\n", state->mutable_state.file_names[i]);
+    TRACE(state, "  %s", state->mutable_state.file_names[i]);
   }
 }
 

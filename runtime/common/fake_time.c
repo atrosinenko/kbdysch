@@ -58,7 +58,7 @@ int clock_gettime(clockid_t clockid, struct timespec *tp) {
     tp->tv_nsec = usec() * 1000;
     break;
   default:
-    fprintf(stderr, "Unhandled clockid: %d\n", clockid);
+    LOG_FATAL("Unhandled clockid: %d", clockid);
     abort();
   }
   return 0;

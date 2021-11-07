@@ -1,5 +1,6 @@
 add_library(common_lib STATIC
   kernel.c
+  logging.c
   resources.c
   util.c
 )

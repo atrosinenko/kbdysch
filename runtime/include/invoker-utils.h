@@ -2,24 +2,19 @@
 #define INVOKER_UTILS_H
 
 #include "kbdysch.h"
+#include "logging.h"
 
 #include <syscall.h>
 #include <setjmp.h>
 
-/**
- * @brief Whether invoker should log assigned and returned values to stderr
- */
-bool res_should_log_assignments(const struct fuzzer_state *state);
-
 #define LOG_ASSIGN(fmt, ...) \
-  if (res_should_log_assignments(state) && name) { \
-    fprintf(stderr, "  Assigned %s = " fmt "\n", name, __VA_ARGS__); \
+  if (name) { \
+    INVOKER_TRACE(state, ("  Assigned %s = " fmt), name, __VA_ARGS__); \
   }
 #define LOG_RETURN(fmt, ...) \
-  if (res_should_log_assignments(state) && name) { \
-    fprintf(stderr, "  Returned %s = " fmt "\n", name, __VA_ARGS__); \
+  if (name) { \
+    INVOKER_TRACE(state, ("  Returned %s = " fmt), name, __VA_ARGS__); \
   }
-
 
 /// Whether variable is **input**, **output** or **bi-directional** syscall argument
 typedef enum {

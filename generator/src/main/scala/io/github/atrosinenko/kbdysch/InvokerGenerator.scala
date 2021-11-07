@@ -40,7 +40,7 @@ class InvokerGenerator(descriptions: Descriptions, syscallCapacity: Int, compari
   private def generateInvokerWith(name: String)(generateInvokerBody: => Unit): Unit = {
     writeLn(s"static void $name($InvokerStateArgDeclaration) {")
     indented {
-      writeLn(s"fprintf(stderr, $Q  Invoker: $name\\n$Q);\n")
+      writeLn(s"INVOKER_TRACE(state, $Q  Invoker: $name$Q);\n")
       generateInvokerBody
     }
     writeLn(s"}")
@@ -111,9 +111,9 @@ class InvokerGenerator(descriptions: Descriptions, syscallCapacity: Int, compari
           ("INVOKE_SYSCALL", ", " + args.map(arg => s"(uint64_t)(${arg.name}[part])").mkString(", "))
         else
           ("INVOKE_SYSCALL_0", "")
-        writeLn(s"fprintf(stderr, $Q  Performing ${syscall.syscall.name}... $Q);")
+        writeLn(s"INVOKER_TRACE_NO_NL(state, $Q  Performing ${syscall.syscall.name}... $Q);")
         writeLn(s"${syscall.syscall.ret.tpe.varName} = $invokeSyscall($InvokerState, ${syscall.syscall.name}$argNames);")
-        writeLn(s"fprintf(stderr, ${Q}OK\\n${Q});")
+        writeLn(s"INVOKER_TRACE(state, ${Q}OK${Q});")
         (args :+ syscall.syscall.ret).foreach { arg =>
           writeLn(s"// process return value: ${arg.name}")
           arg.tpe.processReturnValue(this)

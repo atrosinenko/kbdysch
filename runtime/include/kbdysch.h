@@ -3,6 +3,7 @@
 
 #include "common-defs.h"
 #include "compiler.h"
+#include "logging.h"
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -149,7 +150,7 @@ void warn_lkl_not_supported(void);
 static inline void check_that_impl(int x, const char *line)
 {
   if (!x) {
-    fprintf(stderr, "Check failed: %s\n", line);
+    LOG_FATAL("Check failed: %s", line);
     abort();
   }
 }
@@ -157,7 +158,7 @@ static inline void check_that_impl(int x, const char *line)
 static inline void check_invoker_errno_impl(struct fuzzer_state *state, long err, const char *line)
 {
   if (err != 0) {
-    fprintf(stderr, "Check failed: %s (%s)\n", line, STRERROR(state, err));
+    LOG_FATAL("Check failed: %s (%s)", line, STRERROR(state, err));
     abort();
   }
 }
