@@ -18,9 +18,11 @@ if (USE_COMPACT_ENCODING)
     add_definitions(-DUSE_COMPACT_ENCODING)
 endif()
 
+add_compile_options(-fPIC)
 set(OVERRIDE_LIBS "")
-add_subdirectory(common)
 include(common/Helpers.cmake)
+add_subdirectory(common)
+add_subdirectory(mutators)
 
 RegisterInvoker(fs)
 RegisterHarnessWithInvoker(fsfuzz fs)
