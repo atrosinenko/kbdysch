@@ -27,6 +27,7 @@ static inline void zero_fill_after__helper(void *variable, void *field,
 DECLARE_BOOL_KNOB(as_root, "AS_ROOT")
 DECLARE_BOOL_KNOB(do_dump, "DUMP")
 DECLARE_BOOL_KNOB(force_drop_back_jumps, "NO_BACK_JUMPS")
+DECLARE_BOOL_KNOB(fuzz_logging, "FUZZ_LOGGING")
 DECLARE_INT_KNOB(bpf_log_level, "BPF_LOG_LEVEL")
 
 static ALIGNED_ENOUGH unsigned char input_buf[INPUT_LEN];
@@ -206,6 +207,14 @@ int main(int argc, const char *argv[])
     .log_buf   = (uint64_t) (bpf_log_level ? bpf_log_buf : 0),
   };
   ZERO_FILL_AFTER(load_attr, log_buf);
+
+  if (fuzz_logging) {
+    if (!bpf_log_level) {
+      load_attr.log_level = 7;
+      load_attr.log_size = BPF_LOG_BUF_LEN;
+      load_attr.log_buf = (uint64_t) bpf_log_buf;
+    }
+  }
 
   if (do_dump)
     dump_to_file("bpf-dump.bin", input_buf, insn_count * 8);
