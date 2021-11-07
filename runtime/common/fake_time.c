@@ -39,6 +39,8 @@ static inline uint64_t usec() {
   return current_offset_usec % UINT64_C(1000000);
 }
 
+struct timezone;
+
 int gettimeofday(struct timeval *tv, struct timezone *tz) {
   tick();
   tv->tv_sec  = realtime_sec();
