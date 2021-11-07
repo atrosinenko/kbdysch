@@ -54,6 +54,10 @@ void res_load_whole_stdin(struct fuzzer_state *state)
   TRACE(state, "Read %zu bytes of input (max %u).", state->constant_state.length, MAX_INPUT_LEN);
 }
 
+void res_rewind_input(struct fuzzer_state *state, size_t offset) {
+  state->current_state.offset = offset;
+}
+
 void res_save_state(struct fuzzer_state *state)
 {
   memcpy(&state->saved_state, &state->current_state, sizeof(saveable_state_t));

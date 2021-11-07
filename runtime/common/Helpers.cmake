@@ -1,12 +1,15 @@
 # Register auto-generated invoker located in runtime/generated/invoker-<NAME>.c
 function(RegisterInvoker name)
   if (USE_INVOKERS)
-    add_library("invoker_${name}" STATIC
+    add_library(invoker_${name} STATIC
       "${GENERATED_INVOKER_DIR}/invoker-${name}.c")
-    target_link_libraries("invoker_${name}" invoker_lib)
+    target_link_libraries(invoker_${name} invoker_lib)
     # FIXME: Remove after fixing code generator
-    target_compile_options("invoker_${name}" PRIVATE
+    target_compile_options(invoker_${name} PRIVATE
       -Wno-incompatible-pointer-types)
+
+    add_executable(debug-${name} utils/invoker-debugger.c)
+    target_link_libraries(debug-${name} invoker_lib invoker_${name})
   endif()
 endfunction()
 

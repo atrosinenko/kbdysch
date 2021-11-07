@@ -36,6 +36,8 @@ void res_load_whole_stdin(struct fuzzer_state *state);
  */
 void res_set_input_data(struct fuzzer_state *state, const uint8_t *data, size_t size);
 
+void res_rewind_input(struct fuzzer_state *state, size_t offset);
+
 jmp_buf *res_get_stopper_env(struct fuzzer_state *state);
 
 /**
