@@ -73,6 +73,9 @@ In case you would want to modify the syscall descriptions, use `update_invokers.
 
 See [troubleshooting.md](docs/troubleshooting.md) if something goes wrong.
 
+Optional dependencies:
+* libpcap
+
 ## Bugs
 
 Technically, **this** fuzzer has not found anything yet at the time of writing this README, since it is
