@@ -6,6 +6,11 @@ add_library(common_lib STATIC
   util.c
 )
 
+if (USE_LKL)
+    target_compile_definitions(common_lib PUBLIC -DUSE_LKL)
+    target_link_libraries(common_lib lkl)
+endif()
+
 if (FAKE_TIME)
   add_library(fake_time OBJECT fake_time.c)
   set(OVERRIDE_LIBS "${OVERRIDE_LIBS};fake_time" PARENT_SCOPE)
