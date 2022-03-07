@@ -1,5 +1,6 @@
 #include "kbdysch.h"
 #include "invoker-utils.h"
+#include "mutator-interface.h"
 
 #include <fcntl.h>
 #include <linux/fuse.h>
@@ -195,6 +196,7 @@ int main(int argc, const char *argv[]) {
         );
 
   struct fuzzer_state *state = create_state(argc, argv, NULL);
+  mutator_init();
   const int uid = as_root ? 0 : 1;
 
   kernel_configure_diskless(state, FUSE_MOUNT_POINT);
@@ -211,6 +213,8 @@ int main(int argc, const char *argv[]) {
     pth_yield(NULL);
 
     for (int block_index = 0; block_index < MAX_OPS; ++block_index) {
+      mutator_write_trim_offset(res_get_cur_offset(state));
+
       if (block_index > fuse_request_counter + 2)
         break;
 

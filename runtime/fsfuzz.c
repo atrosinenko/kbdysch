@@ -1,5 +1,6 @@
 #include "kbdysch.h"
 #include "invoker-utils.h"
+#include "mutator-interface.h"
 
 static const int MAX_INPUT_OPS = 25;
 
@@ -15,6 +16,8 @@ static void check_part_is_clean(struct fuzzer_state *state, int part, const char
 int main(int argc, const char *argv[])
 {
   struct fuzzer_state * const state = create_state(argc, argv, NULL);
+
+  mutator_init();
 
   show_help_and_exit_if_needed(
         argc, argv,
@@ -56,6 +59,8 @@ int main(int argc, const char *argv[])
 
   if (setjmp(*res_get_stopper_env(state)) == 0) {
     for (int block_index = 0; block_index < MAX_INPUT_OPS; ++block_index) {
+      mutator_write_trim_offset(res_get_cur_offset(state));
+
       exit_if_too_many_errors(state);
       skip_block_if_requested(state, block_index);
       size_t decoded_bytes = do_invoke(state, block_index);
