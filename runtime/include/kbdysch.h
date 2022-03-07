@@ -144,13 +144,13 @@ void warn_lkl_not_supported(void);
 #define STRERROR_OR_POSITIVE(state, returned_value) \
     ((returned_value) < 0 ? STRERROR(state, returned_value) : "No error")
 
-#define CHECK_THAT(x) check_that_impl((x), #x)
+#define CHECK_THAT(x) check_that_impl((x), __FILE__, __LINE__, #x)
 #define CHECK_INVOKER_ERRNO(state, x) check_invoker_errno_impl((state), (x), #x)
 
-static inline void check_that_impl(int x, const char *line)
+static inline void check_that_impl(int x, const char *file_name, int line, const char *expr)
 {
   if (!x) {
-    LOG_FATAL("Check failed: %s", line);
+    LOG_FATAL("%s:%d: Check failed: %s", file_name, line, expr);
     abort();
   }
 }
