@@ -13,7 +13,6 @@ if (USE_COMPACT_ENCODING)
 endif()
 
 add_compile_options(-fPIC)
-set(OVERRIDE_LIBS "")
 include(common/Helpers.cmake)
 add_subdirectory(common)
 add_subdirectory(mutators)
