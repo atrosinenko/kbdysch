@@ -3,14 +3,17 @@
 #define clock_gettime clock_gettime_real
 #define gettimeofday gettimeofday_real
 #define time time_real
+#define select select_real
 
 #include "kbdysch.h"
 #include <stdint.h>
 #include <time.h>
+#include <dlfcn.h>
 
 #undef clock_gettime
 #undef gettimeofday
 #undef time
+#undef select
 
 /* *** NO `#include`s BELOW THIS LINE *** */
 
@@ -72,4 +75,22 @@ time_t time(time_t *tloc) {
   if (tloc)
     *tloc = result;
   return result;
+}
+
+int (*select_original)(int nfds, fd_set *readfds, fd_set *writefds,
+                       fd_set *exceptfds, struct timeval *timeout);
+
+CONSTRUCTOR(dlsym_select) {
+  select_original = dlsym(RTLD_NEXT, "select");
+}
+
+int select(int nfds, fd_set *readfds, fd_set *writefds,
+           fd_set *exceptfds, struct timeval *timeout) {
+  if (timeout) {
+    current_offset_usec += timeout->tv_sec * 1000000u;
+    current_offset_usec += timeout->tv_usec;
+    timeout->tv_sec = 0;
+    timeout->tv_usec = 0;
+  }
+  return select_original(nfds, readfds, writefds, exceptfds, timeout);
 }
