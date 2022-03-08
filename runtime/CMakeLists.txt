@@ -2,6 +2,7 @@ option(USE_INVOKERS     "Build fuzzers that require invokers to be generated fir
 option(FAKE_TIME        "Report fake time values to Pth, LKL, etc. to increase the stability" ON)
 option(USE_COMPACT_ENCODING "Read more compact descriptions when generating strings and buffer contents" ON)
 
+include(common/Profile.cmake)
 include(common/LKL.cmake)
 
 set(GENERATED_INVOKER_DIR "${CMAKE_CURRENT_LIST_DIR}/generated")
