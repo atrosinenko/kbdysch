@@ -8,7 +8,7 @@
 #ifdef USE_LKL
 #include "lkl.h"
 #include "lkl_host.h"
-#include "linux/mount.h"
+#include <sys/mount.h>
 #else
 struct lkl_disk {
   int dummy;

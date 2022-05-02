@@ -1,3 +1,4 @@
+option(USE_DUMMY_LKL "Use dummy Linux Kernel Library for testing" OFF)
 option(USE_LKL "Use Linux Kernel Library (otherwise just build invokers for the host kernel)" ON)
 
 # Build LKL together with kbdysch or ...
@@ -7,6 +8,12 @@ set(LKL_MAKE_FLAGS   "-j8" CACHE STRING "Extra make flags for LKL")
 # ... use an existing build
 set(LKL_INCLUDE_PATH "" CACHE STRING "Full path to the tools/lkl/include of LKL build")
 set(LKL_LIB_PATH     "" CACHE STRING "Full path to LKL library file")
+
+if (USE_DUMMY_LKL)
+    # Dummy LKL is set up by its CMakeLists.txt, just a trivial handling here.
+    set(USE_LKL ON)
+    return()
+endif()
 
 if (NOT USE_LKL)
     return()

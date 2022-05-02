@@ -1,9 +1,20 @@
 name: Post-commit check
 on: [push]
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-18.04
     timeout-minutes: 10
+    strategy:
+      matrix:
+        include:
+          - compiler: clang
+            cmake_opts: ''
+          - compiler: clang
+            cmake_opts: '-DCMAKE_C_FLAGS="-fsanitize=undefined"'
+          - compiler: clang
+            cmake_opts: '-DCMAKE_C_FLAGS="-fsanitize=address"'
+          - compiler: afl-clang-fast
+            cmake_opts: '-DKBDYSCH_PERFORM_AFL_TESTS=ON'
     steps:
       - name: Perform checkout
         uses: actions/checkout@v2
@@ -13,7 +24,7 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
       - name: Install other dependencies
-        run: sudo apt-get install -y cmake libpth-dev
+        run: sudo apt-get install --no-install-recommends -y cmake libpth-dev clang afl++
       - name: Cache Scala packages
         uses: actions/cache@v2
         with:
@@ -25,6 +36,8 @@ jobs:
       - name: Generate invokers
         run: ./update_invokers.sh
       - name: Run CMake
-        run: cmake -S . -B ./build -DUSE_LKL=OFF
+        run: cmake -S . -B ./build -DUSE_LKL=OFF -DUSE_DUMMY_LKL=ON -DCMAKE_C_COMPILER=${{ matrix.compiler }} ${{ matrix.cmake_opts }}
       - name: Build harnesses
         run: cmake --build ./build
+      - name: Run tests
+        run: ctest --output-on-failure --test-output-size-failed 65536 --test-dir ./build

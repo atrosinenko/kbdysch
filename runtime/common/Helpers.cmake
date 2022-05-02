@@ -26,3 +26,18 @@ function(RegisterHarnessWithInvoker name invoker_name)
     target_link_libraries(${name} invoker_lib "invoker_${invoker_name}")
   endif()
 endfunction()
+
+function(TestHarnessWithArguments name)
+  set(args ${ARGV})
+  list(REMOVE_AT args 0)
+  add_test(
+    NAME "run-${name}"
+    COMMAND ${CMAKE_SOURCE_DIR}/utils/test-run.sh $<TARGET_FILE:${name}> ${args}
+  )
+  if (KBDYSCH_PERFORM_AFL_TESTS)
+    add_test(
+      NAME "stability-${name}"
+      COMMAND ${CMAKE_SOURCE_DIR}/utils/test-map-stability.sh $<TARGET_FILE:${name}> ${args}
+    )
+  endif()
+endfunction()

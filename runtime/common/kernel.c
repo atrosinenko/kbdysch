@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/sysmacros.h>
+#include <linux/stat.h>
 #include <syscall.h>
 #include <ctype.h>
 

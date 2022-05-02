@@ -112,9 +112,14 @@ static inline long lkl_exit_wrapper(long result)
 #ifdef USE_LKL
 // Appending 6 literal zero elements ensures `params` argument of lkl_syscall()
 // has at least 6 dereferenceable elements.
+#ifdef USE_DUMMY_LKL
+#define LKL_SC_NR(name) __NR_##name
+#else
+#define LKL_SC_NR(name) __lkl_NR_##name
+#endif
 #define LKL_SAFE_SYSCALL(name, ...) \
     (compiler_enter_lkl(), lkl_exit_wrapper( \
-        lkl_syscall(__lkl__NR_##name, (long[]){__VA_ARGS__, 0, 0, 0, 0, 0, 0})))
+        lkl_syscall(LKL_SC_NR(name), (long[]){__VA_ARGS__, 0, 0, 0, 0, 0, 0})))
 #define LKL_ERRNO(retval) (retval)
 #define LKL_STRERROR(retval) lkl_strerror((retval))
 #else
