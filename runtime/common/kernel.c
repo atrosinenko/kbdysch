@@ -484,6 +484,14 @@ void kernel_boot(struct fuzzer_state *state, const char *cmdline)
   lkl_start_kernel(&lkl_host_ops, cmdline);
   lkl_mount_fs("sysfs");
   lkl_mount_fs("proc");
+  for (int i = 0; i < state->constant_state.part_count; ++i) {
+    // Create device file for each disk
+    char device_name[128], sysfs_name[128];
+    sprintf(device_name, "block-%d-%s", i, state->partitions[i].fstype);
+    sprintf(sysfs_name, "block/vd%c", 'a' + i);
+    int fd = kernel_open_device_by_sysfs_name(state, device_name, sysfs_name, S_IFBLK);
+    INVOKE_SYSCALL(state, close, fd);
+  }
   mount_all(state);
   boot_complete = true;
 #endif
