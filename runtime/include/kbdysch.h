@@ -115,7 +115,7 @@ static inline long lkl_exit_wrapper(long result)
 #ifdef USE_DUMMY_LKL
 #define LKL_SC_NR(name) __NR_##name
 #else
-#define LKL_SC_NR(name) __lkl_NR_##name
+#define LKL_SC_NR(name) __lkl__NR_##name
 #endif
 #define LKL_SAFE_SYSCALL(name, ...) \
     (compiler_enter_lkl(), lkl_exit_wrapper( \
