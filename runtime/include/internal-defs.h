@@ -32,11 +32,12 @@ static const char *BAD_WORDS[] = {
 #define MAX_STRING_COUNT (1 << 16)
 
 #define MOUNT_POINT_LEN 128
+#define FSTYPE_LEN 32
 #define ACCESS_HISTORY_LEN 1024
 
 typedef struct {
   char mount_point[MOUNT_POINT_LEN]; ///< Mount points of configured partitions
-  char fstype[32];      ///< Type of the file system, as recognized by mount
+  char fstype[FSTYPE_LEN];           ///< Type of the file system, as recognized by mount
   struct lkl_disk disk; ///< LKL structure associated with this partition
   int disk_id;          ///< LKL disk ID associated with this partition
 

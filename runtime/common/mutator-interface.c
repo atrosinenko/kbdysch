@@ -1,39 +1,121 @@
 #include "mutator-interface.h"
 #include "mutator-defs.h"
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/shm.h>
 
+#define WORD_SIZE sizeof(mutator_shm_word)
+#define NUM_WORDS(bytes) (((bytes) + WORD_SIZE - 1) / WORD_SIZE)
+
 static bool initialized;
-static uint32_t *shm_words;
+static bool fixed_size_buffer_closed;
+static mutator_shm_word *shm_words;
 static unsigned current_word;
 
 void mutator_init(void) {
+  if (initialized)
+    return;
+  initialized = true;
+
   const char *shm_str = getenv(MUTATOR_ENV_NAME);
   if (!shm_str)
     return;
 
   shm_words = shmat(atoi(shm_str), NULL, 0);
-  if (!shm_words)
-    return;
-
-  initialized = true;
   current_word = 0;
 }
 
-void mutator_write_trim_offset(unsigned offset) {
+static void *allocate_in_shm(size_t bytes, size_t extra_words) {
   if (!initialized)
+    mutator_init();
+
+  if (!shm_words)
+    return NULL;
+
+  size_t words = NUM_WORDS(bytes);
+  if (current_word + words + extra_words > MUTATOR_SHM_SIZE_WORDS)
+    return NULL;
+
+  void *result = &shm_words[current_word];
+  memset(result, 0, WORD_SIZE * words);
+  current_word += words;
+
+  return result;
+}
+
+#define ALLOC_SHM_VAR(type, name) \
+  type *name = (type *)allocate_in_shm(sizeof(type), 0)
+
+static struct mutator_fixed_record_header *allocate_fixed_record(
+    int type, const char *name, size_t element_words, size_t max_elements) {
+  assert(!fixed_size_buffer_closed);
+
+  size_t name_bytes = strlen(name);
+
+  ALLOC_SHM_VAR(struct mutator_fixed_record_header, header);
+  if (!header)
+    return NULL;
+
+  header->type = type;
+  header->name_words = NUM_WORDS(name_bytes);
+  header->element_words = element_words;
+  header->max_num_elements = max_elements;
+
+  char *name_var = allocate_in_shm(name_bytes, 0);
+  if (!name_var)
+    return NULL;
+  memcpy(name_var, name, name_bytes);
+
+  allocate_in_shm(WORD_SIZE * element_words * max_elements, 0);
+
+  return header;
+}
+
+debug_variable *mutator_allocate_counters(const char *name, size_t max_counters) {
+  return allocate_fixed_record(MUTATOR_FIXED_RECORD_COUNTERS, name,
+                               NUM_WORDS(sizeof(uint64_t)), max_counters);
+}
+
+debug_variable *mutator_allocate_strings(const char *name, size_t max_strlen, size_t max_strings) {
+  return allocate_fixed_record(MUTATOR_FIXED_RECORD_STRINGS, name,
+                               NUM_WORDS(max_strlen), max_strings);
+}
+
+static void close_fixed_section(void) {
+  fixed_size_buffer_closed = true;
+  allocate_fixed_record(MUTATOR_FIXED_RECORD_STOP, "END", 0, 0);
+  mutator_shm_word *mark = allocate_in_shm(WORD_SIZE, 1);
+  if (!mark)
     return;
+  *mark = MUTATOR_END_OF_FIXED_SECTION_MARK;
+}
 
-  if (current_word + 2 >= MUTATOR_MAX_SHM_WORDS)
-    return;  // Too many offsets
+void *mutator_variable_get_ptr(debug_variable *header, int index) {
+  if (!header)
+    return NULL;
 
-  shm_words[current_word + 0] = MUTATOR_OP_TRIM_OFFSET;
-  shm_words[current_word + 1] = offset;
-  shm_words[current_word + 2] = MUTATOR_OP_STOP;  // To be overwritten
+  uint8_t *ptr = (uint8_t *)header;
+  ptr += sizeof(struct mutator_fixed_record_header);
+  ptr += WORD_SIZE * header->name_words;
+  ptr += WORD_SIZE * header->element_words * index;
+  return ptr;
+}
 
-  current_word += 2;  // Buffer was extended by only *two* words
+void mutator_write_trim_offset(unsigned offset) {
+  assert(initialized);
+  if (!fixed_size_buffer_closed)
+    close_fixed_section();
+  mutator_shm_word *words = allocate_in_shm(2 * WORD_SIZE, 2);
+  if (!words)
+    return;
+  words[0] = MUTATOR_OPCODE_SET_OFFSET;
+  words[1] = offset;
+  // to be overwritten
+  words[2] = MUTATOR_OPCODE_STOP;
+  words[3] = MUTATOR_END_OF_BYTECODE_SECTION_MARK;
 }
