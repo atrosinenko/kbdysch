@@ -2,18 +2,9 @@
 #define INTERNAL_DEFS_H
 
 #include "kbdysch.h"
+#include "block.h"
 
 #include <setjmp.h>
-
-#ifdef USE_LKL
-#include "lkl.h"
-#include "lkl_host.h"
-#include <sys/mount.h>
-#else
-struct lkl_disk {
-  int dummy;
-};
-#endif
 
 /**
  * Presense of one of the following words (case insensitive) in the `printk` message
@@ -33,24 +24,15 @@ static const char *BAD_WORDS[] = {
 
 #define MOUNT_POINT_LEN 128
 #define FSTYPE_LEN 32
-#define ACCESS_HISTORY_LEN 1024
 
 typedef struct {
   char mount_point[MOUNT_POINT_LEN]; ///< Mount points of configured partitions
   char fstype[FSTYPE_LEN];           ///< Type of the file system, as recognized by mount
-  struct lkl_disk disk; ///< LKL structure associated with this partition
-  int disk_id;          ///< LKL disk ID associated with this partition
 
   int registered_fds[MAX_REGISTERED_FDS]; ///< File descriptors referencing this partition
   int registered_fds_count;               ///< Count of actual entries in `registered_fds`
 
-  int off_start[ACCESS_HISTORY_LEN]; ///< Start offset of the recorded access
-  int off_end  [ACCESS_HISTORY_LEN]; ///< End offset of the recorded access
-  long long access_count; ///< Total number of accesses issued on this partition
-  int off_cur; ///< Index of current offset to be recorded (in a circular buffer manner)
-
-  char *data;  ///< Pointer to partition image data
-  size_t size; ///< Size of partition image data in bytes
+  struct kbdysch_block_dev blockdev; ///< Underlying block storage implementation
 } partition_t;
 
 /**

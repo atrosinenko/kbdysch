@@ -2,14 +2,14 @@
 
 #include "internal-defs.h"
 #include "invoker-utils.h"
+#include "block.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/sysmacros.h>
-#include <linux/stat.h>
-#include <syscall.h>
+#include <linux/stat.h> // for STATX_MODE on Ubuntu 18.04
 #include <ctype.h>
 
 DECLARE_BOOL_KNOB(dump_parts, "DUMP")
@@ -21,6 +21,9 @@ DECLARE_BITMASK_KNOB(no_bad_words, "NO_BAD_WORDS")
 DECLARE_STRING_KNOB(mount_options_knob, "MOUNT_OPTIONS")
 
 #ifdef USE_LKL
+
+#include "lkl_host.h"
+#include <sys/mount.h>
 
 // Unfortunately, printk does not have `state` argument...
 static bool patching_was_performed = false;
@@ -37,69 +40,10 @@ static void kernel_dump_all_pertitions_if_requested(struct fuzzer_state *state)
     snprintf(dump_file_name, sizeof(dump_file_name), "dump_%s.img",
              state->partitions[part].fstype);
 
-    dump_to_file(dump_file_name, state->partitions[part].data, state->partitions[part].size);
+    dump_to_file(dump_file_name,
+                 state->partitions[part].blockdev.data,
+                 state->partitions[part].blockdev.size);
   }
-}
-
-static void set_part_to_disk(struct lkl_disk *disk, partition_t *partition)
-{
-  disk->handle = partition;
-}
-
-static partition_t *part_from_disk(struct lkl_disk disk)
-{
-  return (partition_t *)disk.handle;
-}
-
-static int mem_get_capacity(struct lkl_disk disk, unsigned long long *res) {
-  *res = part_from_disk(disk)->size;
-  return LKL_DEV_BLK_STATUS_OK;
-}
-
-static int mem_request(struct lkl_disk disk, struct lkl_blk_req *req)
-{
-  int reading_requested;
-  switch(req->type) {
-    case LKL_DEV_BLK_TYPE_READ:
-      reading_requested = 1;
-      break;
-    case LKL_DEV_BLK_TYPE_WRITE:
-      reading_requested = 0;
-      break;
-    case LKL_DEV_BLK_TYPE_FLUSH:
-    case LKL_DEV_BLK_TYPE_FLUSH_OUT:
-      // no-op
-      return LKL_DEV_BLK_STATUS_OK;
-    default:
-      return LKL_DEV_BLK_STATUS_UNSUP;
-  }
-
-  partition_t * const partition = part_from_disk(disk);
-  size_t offset = req->sector * 512;
-
-  if (offset >= partition->size)
-      return LKL_DEV_BLK_STATUS_IOERR;
-
-  for (int i = 0; i < req->count; ++i)
-  {
-    size_t len = req->buf[i].iov_len;
-    if (offset + len > partition->size)
-      return LKL_DEV_BLK_STATUS_IOERR;
-
-    partition->off_start[partition->off_cur] = offset;
-    partition->off_end  [partition->off_cur] = offset + len;
-    partition->off_cur++;
-    if (partition->off_cur >= ACCESS_HISTORY_LEN)
-      partition->off_cur = 0;
-    partition->access_count++;
-
-    if (reading_requested)
-      memcpy(req->buf[i].iov_base, partition->data + offset, len);
-    else
-      memcpy(partition->data + offset, req->buf[i].iov_base, len);
-    offset += len;
-  }
-  return LKL_DEV_BLK_STATUS_OK;
 }
 
 static void *map_internal(struct fuzzer_state *state, const char *desc, int fd, size_t size) {
@@ -132,8 +76,6 @@ void kernel_setup_disk(struct fuzzer_state *state, const char *filename, const c
 {
   partition_t *partition = &state->partitions[state->constant_state.part_count];
 
-  set_part_to_disk(&partition->disk, partition);
-
   int image_fd = open(filename, O_RDONLY);
   if(image_fd == -1) {
     LOG_FATAL("Cannot open '%s': %s", filename, strerror(errno));
@@ -146,10 +88,11 @@ void kernel_setup_disk(struct fuzzer_state *state, const char *filename, const c
     abort();
   }
 
-  partition->size = size;
-  strncpy(partition->fstype, fstype, sizeof(partition->fstype));
-  partition->data = map_internal(state, filename, image_fd, size);
+  uint8_t *data = map_internal(state, filename, image_fd, size);
+  blockdev_assign_data(&partition->blockdev, data, size);
   close(image_fd);
+
+  strncpy(partition->fstype, fstype, sizeof(partition->fstype));
 
   state->constant_state.part_count += 1;
 }
@@ -157,20 +100,16 @@ void kernel_setup_disk(struct fuzzer_state *state, const char *filename, const c
 
 static void add_all_disks(struct fuzzer_state *state)
 {
-  static struct lkl_dev_blk_ops blk_ops;
-  blk_ops.get_capacity = mem_get_capacity;
-  blk_ops.request = mem_request;
-
   if (state->constant_state.diskless) {
     return;
   }
 
-  for (int i = 0; i < state->constant_state.part_count; ++i)
-  {
-    state->partitions[i].disk.ops = &blk_ops;
-    int disk_id = lkl_disk_add(&state->partitions[i].disk);
+  for (int i = 0; i < state->constant_state.part_count; ++i) {
+    state->partitions[i].blockdev.disk.ops = &kbdysch_blk_ops;
+    int disk_id = lkl_disk_add(&state->partitions[i].blockdev.disk);
     CHECK_THAT(disk_id >= 0);
-    state->partitions[i].disk_id = disk_id;
+    state->partitions[i].blockdev.lkl_disk_id = disk_id;
+    TRACE(state, "Disk #%d: %s", i, state->partitions[i].fstype);
   }
 }
 
@@ -189,7 +128,7 @@ static void unmount_all(struct fuzzer_state *state) {
     if (strncmp(partition->fstype, FSTYPE_RAW, strlen(FSTYPE_RAW)) == 0) {
       continue;
     }
-    int ret = lkl_umount_dev(partition->disk_id, 0, 0, 1);
+    int ret = lkl_umount_dev(partition->blockdev.lkl_disk_id, 0, 0, 1);
     if (ret) {
       // TODO
       WARN(state, "Cannot unmount #%d, type = %s (%s), just exiting...",
@@ -226,7 +165,7 @@ static void mount_all(struct fuzzer_state *state)
       mount_options = mount_options_knob;
 
     int ret = lkl_mount_dev(
-      partition->disk_id,
+      partition->blockdev.lkl_disk_id,
       0,
       partition->fstype,
       mount_flags,
@@ -257,56 +196,6 @@ static void mount_all(struct fuzzer_state *state)
     TRACE(state, "Successfully mounted partition #%d, type = %s",
           part, partition->fstype);
   }
-}
-
-static void patch_one(struct fuzzer_state *state, partition_t *partition)
-{
-  const unsigned param1 = res_get_u16(state) % partition->access_count;
-  const int access_nr = ((partition->off_cur - (int)param1) % ACCESS_HISTORY_LEN + ACCESS_HISTORY_LEN) % ACCESS_HISTORY_LEN;
-
-  const unsigned char op = res_get_u8(state);
-  const int32_t arg = res_get_u32(state);
-  const int patch_size = (op & 0x70) >> 4;
-  const int patch_local_range = partition->off_end[access_nr] - partition->off_start[access_nr] - patch_size + 1;
-
-  if (patch_local_range <= 0)
-    return;
-
-  const int32_t param2 = res_get_u32(state);
-  const int patch_local_offset = (param2 > 0) ? (param2 % patch_local_range) : (param2 % patch_local_range + patch_local_range);
-  size_t partition_offset = partition->off_start[access_nr] + patch_local_offset;
-  void *patch_destination = partition->data + partition_offset;
-
-  uint64_t original_data, patched_data;
-  memcpy(&original_data, patch_destination, patch_size);
-  patched_data = original_data;
-
-  switch(op & 0x07) {
-  case 0:
-  case 1:
-    patched_data += (int64_t)arg;
-    break;
-  case 2:
-  case 3:
-    patched_data = (int64_t)arg;
-    break;
-  case 4:
-    patched_data &= arg;
-    break;
-  case 5:
-    patched_data |= arg;
-    break;
-  case 6:
-  case 7:
-    patched_data ^= arg;
-    break;
-  }
-  memcpy(patch_destination, &patched_data, patch_size);
-
-  TRACE(state, "Patching at 0x%zx, size = %d: 0x%lx -> 0x%lx (op = 0x%02x, arg = 0x%x)",
-        partition_offset, patch_size,
-        original_data, patched_data,
-        op & 0xff, arg);
 }
 
 static void my_printk(const char *msg, int len)
@@ -417,8 +306,7 @@ void kernel_configure_diskless(struct fuzzer_state *state, const char *mpoint)
   state->constant_state.part_count = 1;
   partition_t *root_pseudo_partition = &state->partitions[0];
 
-  root_pseudo_partition->size = 0;
-  root_pseudo_partition->data = NULL;
+  blockdev_assign_data(&root_pseudo_partition->blockdev, NULL, 0);
   strcpy(root_pseudo_partition->mount_point, mpoint);
   strncpy(root_pseudo_partition->fstype,  "<root pseudo partition>", sizeof(root_pseudo_partition->fstype));
   root_pseudo_partition->registered_fds[0] = -1; // invalid FD
@@ -454,9 +342,9 @@ void kernel_perform_patching(struct fuzzer_state *state)
 
 #ifdef USE_LKL
   // Now, we have exactly one real partition
-  partition_t *partition = &state->partitions[0];
+  struct kbdysch_block_dev *blk = &state->partitions[0].blockdev;
 
-  if (partition->access_count == 0)
+  if (blk->access_count == 0)
     return;
 
   const int count = res_get_u8(state) % 32;
@@ -465,7 +353,7 @@ void kernel_perform_patching(struct fuzzer_state *state)
   state->mutable_state.patch_was_invoked = true;
   patching_was_performed = true;
   for(int i = 0; i < count; ++i) {
-    patch_one(state, partition);
+    blockdev_patch_one_word(state, blk);
   }
   mount_all(state);
 #endif
@@ -484,14 +372,7 @@ void kernel_boot(struct fuzzer_state *state, const char *cmdline)
   lkl_start_kernel(&lkl_host_ops, cmdline);
   lkl_mount_fs("sysfs");
   lkl_mount_fs("proc");
-  for (int i = 0; i < state->constant_state.part_count; ++i) {
-    // Create device file for each disk
-    char device_name[128], sysfs_name[128];
-    sprintf(device_name, "block-%d-%s", i, state->partitions[i].fstype);
-    sprintf(sysfs_name, "block/vd%c", 'a' + i);
-    int fd = kernel_open_device_by_sysfs_name(state, device_name, sysfs_name, S_IFBLK);
-    INVOKE_SYSCALL(state, close, fd);
-  }
+  blockdev_init_after_boot(state);
   mount_all(state);
   boot_complete = true;
 #endif

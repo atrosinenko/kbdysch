@@ -1,4 +1,5 @@
 set(COMMON_LIB_SOURCES
+  block.c
   kernel.c
   logging.c
   mutator-interface.c
