@@ -68,6 +68,7 @@ void res_add_to_known_strings(struct fuzzer_state *state, const char *string);
 void kernel_setup_disk(struct fuzzer_state *state, const char *filename, const char *fstype);
 void kernel_configure_diskless(struct fuzzer_state *state, const char *mpoint);
 void kernel_boot(struct fuzzer_state *state, const char *cmdline);
+void wait_for_fd(struct fuzzer_state *state, int fd, bool for_read, bool for_write);
 size_t kernel_read_from_file(struct fuzzer_state *state, const char *filename, const void *data, size_t size);
 void kernel_dump_file_contents(struct fuzzer_state *state, const char *filename);
 void kernel_write_to_file(struct fuzzer_state *state, const char *filename, const void *data, size_t size, int write_may_fail);

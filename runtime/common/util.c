@@ -191,3 +191,23 @@ void dump_to_file(const char *dump_file_name, const void *data, size_t size)
   close(dump_fd);
   fprintf(stderr, "OK\n");
 }
+
+void wait_for_fd(struct fuzzer_state *state, int fd, bool for_read, bool for_write) {
+  fd_set rfds, wfds;
+  fd_set *arg_rfds = NULL, *arg_wfds = NULL;
+  if (for_read) {
+    FD_ZERO(&rfds);
+    FD_SET(fd, &rfds);
+    arg_rfds = &rfds;
+  }
+  if (for_write) {
+    FD_ZERO(&wfds);
+    FD_SET(fd, &wfds);
+    arg_wfds = &wfds;
+  }
+  int res = INVOKE_SYSCALL(state, pselect6, fd + 1, (long)arg_rfds, (long)arg_wfds, (long)NULL, 0, 0);
+  if (res <= 0) {
+    LOG_FATAL("pselect6: %s", STRERROR(state, res));
+    abort();
+  }
+}

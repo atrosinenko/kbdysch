@@ -20,6 +20,12 @@ DECLARE_BOOL_KNOB(no_patch, "NO_PATCH")
 DECLARE_BITMASK_KNOB(no_bad_words, "NO_BAD_WORDS")
 DECLARE_STRING_KNOB(mount_options_knob, "MOUNT_OPTIONS")
 
+// A kludgy quick-fix for link-time assertions in LKL :)
+#if 0
+void __generic_xchg_called_with_bad_pointer() { abort(); }
+void wrong_size_cmpxchg() { abort(); }
+#endif
+
 #ifdef USE_LKL
 
 #include "lkl_host.h"

@@ -13,6 +13,7 @@ if (USE_COMPACT_ENCODING)
 endif()
 
 add_compile_options(-fPIC)
+link_libraries(-Wl,--export-dynamic)
 include(common/Helpers.cmake)
 add_subdirectory(dummy-lkl)
 add_subdirectory(common)
