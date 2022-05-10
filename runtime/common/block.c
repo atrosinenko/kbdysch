@@ -3,8 +3,21 @@
 
 #include "internal-defs.h"
 #include "invoker-utils.h"
+#include "mutator-interface.h"
 
 #include <fcntl.h>
+
+DEBUG_STRINGS(part_types, "Partition types", FSTYPE_LEN, MAX_PART_COUNT)
+DEBUG_COUNTERS(mark_detected,      "Mark detected",                MAX_PART_COUNT)
+DEBUG_COUNTERS(mark_not_detected,  "Mark not detected",            MAX_PART_COUNT)
+DEBUG_COUNTERS(mark_detected_fail, "Mark detected (failed later)", MAX_PART_COUNT)
+
+const uint8_t MARKER[4] = {'M', 'A', 'R', 'K'};
+
+#define MARKED_SECTOR_NONE 0x0000
+#define MARKED_SECTOR_TYPE_MASK 0xFF00
+
+#define MARKED_SECTOR_TYPE_FILL 0x0100
 
 static void set_part_to_disk(struct lkl_disk *disk, struct kbdysch_block_dev *blk) {
   disk->handle = blk;
@@ -14,14 +27,63 @@ static struct kbdysch_block_dev *part_from_disk(struct lkl_disk disk) {
   return (struct kbdysch_block_dev *)disk.handle;
 }
 
+static bool u32_filled_with_byte(void *ptr, size_t size, uint8_t byte) {
+  CHECK_THAT(((uintptr_t)ptr) % 4 == 0);
+  CHECK_THAT(size % 4 == 0);
+
+  uint32_t pattern = byte;
+  pattern |= pattern << 8;
+  pattern |= pattern << 16;
+
+  uint32_t *array = (uint32_t *)ptr;
+  for (unsigned i = 0; i < size / 4; ++i) {
+    if (array[i] != pattern)
+      return false;
+  }
+  return true;
+}
+
+static bool detect_marked(int index, uint8_t *data, sector_description *result) {
+  if (memcmp(data, MARKER, sizeof(MARKER))) {
+    INCREMENT_DEBUG_COUNTER(mark_not_detected, index, 1);
+    return false;
+  }
+
+  uint8_t *remainder = &data[sizeof(MARKER)];
+  if (u32_filled_with_byte(remainder, BLK_SECTOR_SIZE - sizeof(MARKER), remainder[0])) {
+    INCREMENT_DEBUG_COUNTER(mark_detected, index, 1);
+    *result = MARKED_SECTOR_TYPE_FILL | (unsigned)remainder[0];
+    return true;
+  }
+
+  INCREMENT_DEBUG_COUNTER(mark_detected_fail, index, 1);
+  return false;
+}
+
+static bool expand_marked(uint8_t *data, sector_description desc) {
+  switch (desc & MARKED_SECTOR_TYPE_MASK) {
+  case MARKED_SECTOR_TYPE_FILL:
+    memcpy(data, MARKER, sizeof(MARKER));
+    memset(data + sizeof(MARKER), desc & 0xff, BLK_SECTOR_SIZE - sizeof(MARKER));
+    return true;
+  default:
+    abort();
+  }
+}
+
 void blockdev_assign_data(struct kbdysch_block_dev *blk, uint8_t *data, size_t size) {
   set_part_to_disk(&blk->disk, blk);
   blk->size = size;
   blk->data = data;
+  blk->sector_state = size == 0 ? NULL : calloc(1 + size / BLK_SECTOR_SIZE, sizeof(blk->sector_state[0]));
 }
 
 void blockdev_init_after_boot(struct fuzzer_state *state) {
   int part_count = state->constant_state.part_count;
+  RESIZE_DEBUG_VARIABLE(part_types, part_count);
+  RESIZE_DEBUG_VARIABLE(mark_detected, part_count);
+  RESIZE_DEBUG_VARIABLE(mark_not_detected, part_count);
+  RESIZE_DEBUG_VARIABLE(mark_detected_fail, part_count);
   for (int i = 0; i < part_count; ++i) {
     // Create device file for each disk
     char device_name[128], sysfs_name[128];
@@ -29,6 +91,12 @@ void blockdev_init_after_boot(struct fuzzer_state *state) {
     sprintf(sysfs_name, "block/vd%c", 'a' + i);
     int fd = kernel_open_device_by_sysfs_name(state, device_name, sysfs_name, S_IFBLK);
     INVOKE_SYSCALL(state, close, fd);
+
+    if (part_types) {
+      memcpy(mutator_variable_get_ptr(part_types, i),
+             state->partitions[i].fstype,
+             FSTYPE_LEN);
+    }
   }
 }
 
@@ -101,6 +169,7 @@ static int mem_get_capacity(struct lkl_disk disk, unsigned long long *res) {
 
 static int mem_request(struct lkl_disk disk, struct lkl_blk_req *req) {
   struct kbdysch_block_dev *blk = part_from_disk(disk);
+  int disk_index = blk->kbdysch_disk_index;
   bool is_read;
   switch(req->type) {
     case LKL_DEV_BLK_TYPE_READ:
@@ -131,12 +200,53 @@ static int mem_request(struct lkl_disk disk, struct lkl_blk_req *req) {
 
     update_access_history(blk, offset, length);
 
-    if (is_read)
-      memcpy(req_ptr, &blk->data[offset], length);
-    else
-      memcpy(&blk->data[offset], req_ptr, length);
+    // Split each iovec further, so that each sub-operation
+    // never crosses sector boundaries.
+    while (length > 0) {
+      size_t sector_index = offset / BLK_SECTOR_SIZE;
+      size_t sector_offset = offset % BLK_SECTOR_SIZE;
+      sector_description *marker_desc = &blk->sector_state[sector_index];
+      size_t sub_length = BLK_SECTOR_SIZE - sector_offset; // the remainder of this sector
+      if (sub_length > length)
+        sub_length = length;
+      bool whole_sector = sector_offset == 0 && sub_length == BLK_SECTOR_SIZE;
 
-    offset += length;
+      uint8_t *cur_part_ptr = &blk->data[offset];
+      uint8_t *cur_req_ptr = req_ptr;
+      req_ptr += sub_length;
+      offset += sub_length;
+      length -= sub_length;
+
+      if (whole_sector) {
+        sector_description tmp;
+        // Try leveraging marked sector representation
+        if (is_read && *marker_desc) {
+          expand_marked(cur_req_ptr, *marker_desc);
+          continue;
+        } else if (!is_read && detect_marked(disk_index, cur_req_ptr, &tmp)) {
+          *marker_desc = tmp;
+          continue;
+        } else if (!is_read) {
+          // Writing full sector as raw, no need to expand existing mark, if any.
+          *marker_desc = MARKED_SECTOR_NONE;
+          memcpy(cur_part_ptr, cur_req_ptr, BLK_SECTOR_SIZE);
+          continue;
+        }
+      }
+
+      if (!is_read && *marker_desc) {
+        // Partially overwriting marked sector - expand mark first
+        expand_marked(cur_part_ptr - sector_offset, *marker_desc);
+        *marker_desc = MARKED_SECTOR_NONE;
+      }
+
+      CHECK_THAT(*marker_desc == MARKED_SECTOR_NONE);
+
+      if (is_read)
+        memcpy(cur_req_ptr, cur_part_ptr, sub_length);
+      else
+        memcpy(cur_part_ptr, cur_req_ptr, sub_length);
+    }
   }
   return LKL_DEV_BLK_STATUS_OK;
 }

@@ -19,9 +19,12 @@ struct fuzzer_state;
 #define BLK_SECTOR_SIZE 512
 #define FSTYPE_RAW "raw:"
 
+typedef uint16_t sector_description;
+
 struct kbdysch_block_dev {
   struct lkl_disk disk;   ///< LKL device structure associated with this partition
   int lkl_disk_id;        ///< LKL disk ID associated with this partition
+  int kbdysch_disk_index; ///< Index of this disk inside state->partitions in kBdysch
 
   int off_start[ACCESS_HISTORY_LEN]; ///< Start offset of the recorded access
   int off_end  [ACCESS_HISTORY_LEN]; ///< End offset of the recorded access
@@ -30,7 +33,10 @@ struct kbdysch_block_dev {
 
   uint8_t *data; ///< Pointer to partition image data
   size_t size;   ///< Size of partition image data in bytes
+  sector_description *sector_state; ///< Special sector status information (pattern-filled, etc.)
 };
+
+extern const uint8_t MARKER[4];
 
 void blockdev_assign_data(struct kbdysch_block_dev *blk, uint8_t *data, size_t size);
 void blockdev_init_after_boot(struct fuzzer_state *state);

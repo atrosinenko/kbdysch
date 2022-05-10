@@ -109,6 +109,7 @@ static void add_all_disks(struct fuzzer_state *state)
     int disk_id = lkl_disk_add(&state->partitions[i].blockdev.disk);
     CHECK_THAT(disk_id >= 0);
     state->partitions[i].blockdev.lkl_disk_id = disk_id;
+    state->partitions[i].blockdev.kbdysch_disk_index = i;
     TRACE(state, "Disk #%d: %s", i, state->partitions[i].fstype);
   }
 }
