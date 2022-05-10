@@ -304,6 +304,8 @@ static void parse_offsets(struct mutator_state *state) {
   int current_word = 0;
   DECL_WITH_TYPE(mutator_shm_word, current_ptr, state->shm_bytecode_start);
   for (;;) {
+    if (state->num_offsets >= MUTATOR_MAX_TRIM_OFFSETS)
+      break;
     if (!check_in_bounds(state, current_ptr, 2 * sizeof(mutator_shm_word)))
       break;
 
@@ -325,4 +327,5 @@ static void parse_offsets(struct mutator_state *state) {
       FATAL("Unknown opcode %u at buffer offset %d\n", opcode, current_word);
     }
   }
+  state->offsets[state->num_offsets] = state->original_length;
 }
