@@ -159,33 +159,46 @@ static bool parse_fixed_section(struct mutator_state *state) {
   }
 }
 
+static void print_scalar_variable(struct fixed_record_desc *desc, int index) {
+  switch (desc->type) {
+  case MUTATOR_FIXED_RECORD_COUNTERS: {
+    uint64_t *counters = desc->data;
+    printf("%lu", (unsigned long)counters[index]);
+    break;
+  }
+  case MUTATOR_FIXED_RECORD_STRINGS: {
+    char *strings = desc->data;
+    char *str = &strings[index * desc->size_of_element];
+    str[desc->size_of_element - 1] = '\0';
+    printf("'%s'", str);
+    break;
+  }
+  default:
+    printf("<UNKNOWN TYPE>");
+    break;
+  }
+}
+
 static void print_variables(struct mutator_state *state) {
   for (int record_index = 0; record_index < state->num_fixed_records; ++record_index) {
     struct fixed_record_desc *desc = &state->fixed_records[record_index];
-    printf("Variable #%u: %s\n", record_index, desc->name);
     unsigned num_elements = *desc->num_elements;
     if (num_elements > desc->max_elements) {
       printf("!!! Too many elements: %u, using only the first %d ones.\n",
              num_elements, desc->max_elements);
       num_elements = desc->max_elements;
     }
-    switch (desc->type) {
-    case MUTATOR_FIXED_RECORD_COUNTERS: {
-      uint64_t *counters = desc->data;
+    if (num_elements == 1) {
+      printf("Variable #%u:\t", record_index);
+      print_scalar_variable(desc, 0);
+      printf("\t - %s\n", desc->name);
+    } else {
+      printf("Variable #%u: %s\n", record_index, desc->name);
       for (unsigned i = 0; i < num_elements; ++i) {
-        printf("- [%u] = %lu\n", i, (unsigned long)counters[i]);
+        printf("- [%u] = ", i);
+        print_scalar_variable(desc, i);
+        printf("\n");
       }
-      break;
-    }
-    case MUTATOR_FIXED_RECORD_STRINGS: {
-      char *strings = desc->data;
-      for (unsigned i = 0; i < num_elements; ++i) {
-        char *str = &strings[i * desc->size_of_element];
-        str[desc->size_of_element - 1] = '\0';
-        printf("- [%u] = '%s'\n", i, str);
-      }
-      break;
-    }
     }
   }
 }
