@@ -15,14 +15,14 @@ endfunction()
 
 # Register harness located in runtime/<NAME>.c
 function(RegisterHarness name)
-  add_executable(${name} "${name}.c")
+  add_executable(${name} "${name}.c" $<TARGET_OBJECTS:fake_time>)
   target_link_libraries(${name} common_lib)
 endfunction()
 
 # Register harness <NAME> that has to be linked with <INVOKER_NAME>
 function(RegisterHarnessWithInvoker name invoker_name)
   if (USE_INVOKERS)
-    add_executable(${name} "${name}.c")
+    add_executable(${name} "${name}.c" $<TARGET_OBJECTS:fake_time>)
     target_link_libraries(${name} invoker_lib "invoker_${invoker_name}")
   endif()
 endfunction()

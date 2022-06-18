@@ -4,11 +4,30 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <sys/syscall.h>
+#include <time.h>
+
+static char timestamp_mark(void) {
+  // Ensure dummy-lkl behaves unstably without fake_time, just like LKL does.
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  unsigned x = 0;
+  x += (unsigned)ts.tv_sec * 3U;
+  x += (unsigned)ts.tv_nsec / 17U;
+  x &= 1023;
+  if (x < 10)
+    return '/';
+  else if (x < 100)
+    return '*';
+  else if (x < 500)
+    return '-';
+  else
+    return '|';
+}
 
 #define PRINT_MESSAGE(args_fmt, ...) \
-    fprintf(stderr, "DUMMY LKL: %s(" args_fmt ")\n", __func__, __VA_ARGS__)
+    fprintf(stderr, "%c DUMMY LKL: %s(" args_fmt ")\n", timestamp_mark(), __func__, __VA_ARGS__)
 #define PRINT_MESSAGE0() \
-    fprintf(stderr, "DUMMY LKL: %s()\n", __func__)
+    fprintf(stderr, "%c DUMMY LKL: %s()\n", timestamp_mark(), __func__)
 
 struct lkl_host_operations lkl_host_ops;
 
