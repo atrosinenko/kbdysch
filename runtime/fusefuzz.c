@@ -119,8 +119,7 @@ static void process_fuse_request(struct fuzzer_state *state) {
     .tv_sec = 0,
     .tv_nsec = 100000000,
   };
-  res = INVOKE_SYSCALL(state, ppoll, (long)&pfd, (long)1, (long)&ts, (long)NULL);
-  CHECK_THAT(res >= 0);
+  res = CHECKED_SYSCALL(state, ppoll, (long)&pfd, (long)1, (long)&ts, (long)NULL);
   if (res == 0) {
     pth_yield(NULL);
     return;
@@ -172,13 +171,13 @@ static void mount_fuse(struct fuzzer_state *state, int uid) {
   set_fd_guard(state, fuse_fd);
   fprintf(stderr, "FUSE fd = %d\n", fuse_fd);
 
-  CHECK_THAT(INVOKE_SYSCALL(state, mkdirat, AT_FDCWD, (long)FUSE_MOUNT_POINT, 040777) == 0);
+  CHECKED_SYSCALL(state, mkdirat, AT_FDCWD, (long)FUSE_MOUNT_POINT, 040777);
 
   static char fuse_opts[4096];
   sprintf(fuse_opts, FUSE_MOUNT_OPTIONS, fuse_fd, uid);
-  CHECK_THAT(INVOKE_SYSCALL(state, mount, (long)"fuse_test",
-                            (long)FUSE_MOUNT_POINT, (long)"fuse.test",
-                            MS_NOSUID | MS_NODEV, (long)fuse_opts) == 0);
+  CHECKED_SYSCALL(state, mount, (long)"fuse_test",
+                  (long)FUSE_MOUNT_POINT, (long)"fuse.test",
+                  MS_NOSUID | MS_NODEV, (long)fuse_opts);
   fprintf(stderr, "FUSE mount succeded.\n");
 
   const int prot = PROT_READ | PROT_WRITE;

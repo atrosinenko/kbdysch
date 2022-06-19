@@ -387,10 +387,8 @@ void kernel_boot(struct fuzzer_state *state, const char *cmdline)
 
 size_t kernel_read_from_file(struct fuzzer_state *state, const char *filename, const void *data, size_t size)
 {
-  int fd = INVOKE_SYSCALL(state, openat, AT_FDCWD, (long)filename, O_RDONLY, 0);
-  CHECK_THAT(fd >= 0);
-  ssize_t res = INVOKE_SYSCALL(state, read, fd, (long)data, (long)size);
-  CHECK_THAT(res >= 0);
+  int fd = CHECKED_SYSCALL(state, openat, AT_FDCWD, (long)filename, O_RDONLY, 0);
+  ssize_t res = CHECKED_SYSCALL(state, read, fd, (long)data, (long)size);
   INVOKE_SYSCALL(state, close, fd);
   return (size_t) res;
 }
@@ -407,8 +405,7 @@ void kernel_write_to_file(struct fuzzer_state *state, const char *filename, cons
 {
   TRACE_NO_NL(state, "Writing [%s] to %s... ", data, filename);
   int len = strlen(data);
-  int fd = INVOKE_SYSCALL(state, openat, AT_FDCWD, (long)filename, O_WRONLY, 0);
-  CHECK_THAT(fd >= 0);
+  int fd = CHECKED_SYSCALL(state, openat, AT_FDCWD, (long)filename, O_WRONLY, 0);
   CHECK_THAT(INVOKE_SYSCALL(state, write, fd, (long)data, len) == len || write_may_fail);
   INVOKE_SYSCALL(state, close, fd);
   TRACE(state, "OK");
@@ -518,13 +515,11 @@ int kernel_open_device_by_sysfs_name(struct fuzzer_state *state, const char *nam
 
   // crete device file
   dev_t dev = makedev(major, minor);
-  int mknod_result = INVOKE_SYSCALL(state, mknodat, AT_FDCWD, (long)dev_name, dev_kind | S_IRUSR | S_IWUSR, dev);
-  CHECK_INVOKER_ERRNO(state, mknod_result);
+  CHECKED_SYSCALL(state, mknodat, AT_FDCWD, (long)dev_name, dev_kind | S_IRUSR | S_IWUSR, dev);
   TRACE(state, "  created device file: %s", dev_name);
 
   // open the just created device
-  int fd = INVOKE_SYSCALL(state, openat, AT_FDCWD, (long)dev_name, O_RDWR);
-  CHECK_THAT(fd >= 0);
+  int fd = CHECKED_SYSCALL(state, openat, AT_FDCWD, (long)dev_name, O_RDWR);
   TRACE(state, "  opened as fd = %d", fd);
   TRACE(state, "  DONE");
 

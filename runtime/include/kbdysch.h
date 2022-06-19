@@ -167,6 +167,27 @@ static inline void check_invoker_errno_impl(struct fuzzer_state *state, long err
   }
 }
 
+#define CHECKED_SYSCALL_0(state, syscall_name) \
+    checked_syscall_impl(state, INVOKE_SYSCALL_0(state, syscall_name), \
+                         __FILE__, __LINE__, #syscall_name)
+
+#define CHECKED_SYSCALL(state, syscall_name, ...) \
+    checked_syscall_impl(state, INVOKE_SYSCALL(state, syscall_name, __VA_ARGS__), \
+                         __FILE__, __LINE__, #syscall_name)
+
+static inline long checked_syscall_impl(
+    struct fuzzer_state *state, long ret,
+    const char *file_name, int line, const char *syscall_name) {
+  if (ret < 0) {
+    long err = GET_ERRNO(state, ret);
+    const char *msg = STRERROR(state, ret);
+    LOG_FATAL("%s:%d: System call %s() failed: error %d (%s)",
+              file_name, line, syscall_name, err, msg);
+    abort();
+  }
+  return ret;
+}
+
 /// Whether `x` fits in 8 bits
 #define IS_U8(x)  (((x) & ~0xffLLu      ) == 0)
 /// Whether `x` fits in 16 bits
