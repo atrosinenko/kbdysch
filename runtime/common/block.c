@@ -86,6 +86,8 @@ void blockdev_init_after_boot(struct fuzzer_state *state) {
   RESIZE_DEBUG_VARIABLE(mark_detected_fail, part_count);
   for (int i = 0; i < part_count; ++i) {
     // Create device file for each disk
+    if (!state->partitions[i].blockdev.data)
+      continue;
     char device_name[128], sysfs_name[128];
     sprintf(device_name, "block-%d-%s", i, state->partitions[i].fstype);
     sprintf(sysfs_name, "block/vd%c", 'a' + i);
