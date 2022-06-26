@@ -86,7 +86,10 @@ debug_variable *mutator_allocate_strings(const char *name, size_t max_strlen, si
                                NUM_WORDS(max_strlen), max_strings);
 }
 
-static void close_fixed_section(void) {
+void close_fixed_section(void) {
+  assert(initialized);
+  if (!shm_words)
+    return;
   fixed_size_buffer_closed = true;
   allocate_fixed_record(MUTATOR_FIXED_RECORD_STOP, "END", 0, 0);
   mutator_shm_word *mark = allocate_in_shm(WORD_SIZE, 1);
@@ -106,16 +109,23 @@ void *mutator_variable_get_ptr(debug_variable *header, int index) {
   return ptr;
 }
 
-void mutator_write_trim_offset(unsigned offset) {
+static void mutator_put_insn(unsigned opcode, unsigned *args, unsigned num_args) {
   assert(initialized);
   if (!fixed_size_buffer_closed)
     close_fixed_section();
-  mutator_shm_word *words = allocate_in_shm(2 * WORD_SIZE, 2);
+  mutator_shm_word *words = allocate_in_shm((1 + num_args) * WORD_SIZE, 2);
   if (!words)
     return;
-  words[0] = MUTATOR_OPCODE_SET_OFFSET;
-  words[1] = offset;
+
+  words[0] = opcode;
+  for (unsigned i = 0; i < num_args; ++i)
+    words[1 + i] = args[i];
   // to be overwritten
-  words[2] = MUTATOR_OPCODE_STOP;
-  words[3] = MUTATOR_END_OF_BYTECODE_SECTION_MARK;
+  words[1 + num_args] = MUTATOR_OPCODE_STOP;
+  words[2 + num_args] = MUTATOR_END_OF_BYTECODE_SECTION_MARK;
+}
+
+void mutator_write_trim_offset(unsigned offset) {
+  unsigned args[] = {offset};
+  mutator_put_insn(MUTATOR_OPCODE_SET_OFFSET, args, 1);
 }

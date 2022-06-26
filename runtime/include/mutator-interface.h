@@ -12,6 +12,8 @@ debug_variable *mutator_allocate_counters(const char *name, size_t max_counters)
 
 debug_variable *mutator_allocate_strings(const char *name, size_t max_strlen, size_t max_strings);
 
+void close_fixed_section(void);
+
 void *mutator_variable_get_ptr(debug_variable *header, int index);
 
 void mutator_write_trim_offset(unsigned offset);
