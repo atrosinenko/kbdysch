@@ -26,6 +26,14 @@ void mutator_write_trim_offset(unsigned offset);
     var_name##_counters = mutator_variable_get_ptr(var_name, 0); \
   }
 
+#define DEBUG_COUNTER(var_name, description) \
+  uint64_t *var_name##_counters; \
+  CONSTRUCTOR(init_##var_name) { \
+    debug_variable *var_name = mutator_allocate_counters(description, 1); \
+    var_name##_counters = mutator_variable_get_ptr(var_name, 0); \
+    RESIZE_DEBUG_VARIABLE(var_name, 1); \
+  }
+
 #define DEBUG_STRINGS(var_name, description, max_strlen, max_strings) \
   debug_variable *var_name; \
   CONSTRUCTOR(init_##var_name) { \
@@ -37,5 +45,7 @@ void mutator_write_trim_offset(unsigned offset);
 
 #define INCREMENT_DEBUG_COUNTER(var_name, index, increment) \
   if (var_name##_counters) var_name##_counters[(index)] += (increment)
+
+#define DEBUG_INC(var_name) INCREMENT_DEBUG_COUNTER(var_name, 0, 1)
 
 #endif  // KBDYSCH_MUTATOR_INTERFACE_H

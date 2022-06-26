@@ -2,6 +2,7 @@
 
 #include "internal-defs.h"
 #include "invoker-utils.h"
+#include "mutator-interface.h"
 
 #include <stdint.h>
 #include <unistd.h>
@@ -26,6 +27,11 @@ DECLARE_BOOL_KNOB(no_new_files, "NO_NEW_FILES")
 DECLARE_BOOL_KNOB(simple_file_names, "SIMPLE_NAMES")
 DECLARE_BOOL_KNOB(fault_is_ok, "FAULT_IS_OK")
 DECLARE_INT_KNOB(opt_max_file_name_length, "MAX_FILE_NAME_LENGTH");
+
+DEBUG_COUNTER(file_names_reused, "File names reused")
+DEBUG_COUNTER(file_names_created, "File names created")
+DEBUG_COUNTER(valid_fds, "Valid FDs")
+DEBUG_COUNTER(invalid_fds, "Invalid FDs")
 
 jmp_buf *res_get_stopper_env(struct fuzzer_state *state)
 {
@@ -296,15 +302,19 @@ static int res_create_file_name(struct fuzzer_state *state)
   uint64_t chain_to = res_get_u16(state) % state->current_state.file_name_count;
   uint16_t component_length;
 
-  if (no_new_files)
+  if (no_new_files) {
+    DEBUG_INC(file_names_reused);
     return (int)chain_to;
+  }
 
 #ifdef USE_COMPACT_ENCODING
   component_length = res_fill_buffer_compact(state, "", (uint8_t *)tmp_buf, MAX_FILE_NAME_LEN);
   if (opt_max_file_name_length && component_length > opt_max_file_name_length)
     tmp_buf[opt_max_file_name_length] = '\0';
-  if (component_length == 0)
+  if (component_length == 0) {
+    DEBUG_INC(file_names_reused);
     return (int)chain_to;
+  }
 #else
   component_length = res_get_u16(state);
   if (component_length & 0x8000)
@@ -346,6 +356,7 @@ static int res_create_file_name(struct fuzzer_state *state)
   state->mutable_state.file_names[new_index] = new_name;
   state->current_state.file_name_count += 1;
   snprintf(new_name, MAX_FILE_NAME_LEN, "%s/%s", state->mutable_state.file_names[chain_to], tmp_buf);
+  DEBUG_INC(file_names_created);
   return new_index;
 }
 
@@ -426,8 +437,10 @@ void res_process_fd(struct fuzzer_state *state, const char *name, int reference,
     abort();
   }
   if (value >= 0) {
+    DEBUG_INC(valid_fds);
     LOG_RETURN("<FD: %d>", value);
   } else {
+    DEBUG_INC(invalid_fds);
     LOG_RETURN("<ERR: %s>", STRERROR(state, value));
   }
   // Consuming FD here may clash with manually opened FD (say, for device file).
