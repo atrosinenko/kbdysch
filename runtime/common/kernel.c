@@ -406,9 +406,13 @@ void kernel_write_to_file(struct fuzzer_state *state, const char *filename, cons
   TRACE_NO_NL(state, "Writing [%s] to %s... ", data, filename);
   int len = strlen(data);
   int fd = CHECKED_SYSCALL(state, openat, AT_FDCWD, (long)filename, O_WRONLY, 0);
-  CHECK_THAT(INVOKE_SYSCALL(state, write, fd, (long)data, len) == len || write_may_fail);
+  long err = INVOKE_SYSCALL(state, write, fd, (long)data, len);
+  if (err < 0)
+    WARN(state, "write of %d bytes failed: %d (%s)", len, err, STRERROR(state, err));
+  else
+    TRACE(state, "OK");
+  CHECK_THAT(err == len || write_may_fail);
   INVOKE_SYSCALL(state, close, fd);
-  TRACE(state, "OK");
 }
 
 void kernel_write_string_to_file(struct fuzzer_state *state, const char *filename, const char *str, int write_may_fail)
