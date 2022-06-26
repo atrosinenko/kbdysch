@@ -12,16 +12,12 @@
 #include <pth.h>
 #include <pthread.h>
 
-// Works better if FAKE_TIME is enabled.
-DECLARE_INT_KNOB(hang_iters, "HANG_ITERS")
-
 static void start_lowest_prio_exiter(void);
 CONSTRUCTOR(constr)
 {
   pth_init();
   compiler_initialize();
-  if (hang_iters)
-    start_lowest_prio_exiter();
+  start_lowest_prio_exiter();
 }
 
 static void default_stopper_func(struct fuzzer_state *state)
@@ -31,10 +27,7 @@ static void default_stopper_func(struct fuzzer_state *state)
 
 static void *exiter_thread_fn(void *arg)
 {
-  // TODO: Improve the heuristics.
-  //       Now too low values prevent LKL from booting.
-  for (int i = 0; i < hang_iters; ++i)
-    pth_yield(NULL);
+  pth_nap(pth_time(500, 0));
 
   fprintf(stderr, "Timeout!\n");
   _exit(0);
