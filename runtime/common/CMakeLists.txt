@@ -3,6 +3,7 @@ set(COMMON_LIB_SOURCES
   kernel.c
   logging.c
   mutator-interface.c
+  options.c
   packet-dumper.c
   resources.c
   util.c

@@ -1,5 +1,6 @@
 #include "kbdysch/kbdysch.h"
 #include "kbdysch/invoker-utils.h"
+#include "kbdysch/options.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>

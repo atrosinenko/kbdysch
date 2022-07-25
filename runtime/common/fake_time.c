@@ -6,6 +6,7 @@
 #define select select_real
 
 #include "kbdysch/kbdysch.h"
+#include "kbdysch/options.h"
 #include <stdint.h>
 #include <time.h>
 #include <dlfcn.h>

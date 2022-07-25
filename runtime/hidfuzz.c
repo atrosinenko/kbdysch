@@ -1,4 +1,5 @@
 #include "kbdysch/kbdysch.h"
+#include "kbdysch/options.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>

@@ -1,4 +1,5 @@
 #include "kbdysch/kbdysch.h"
+#include "kbdysch/options.h"
 
 #include <syscall.h>
 #include <linux/bpf.h>
