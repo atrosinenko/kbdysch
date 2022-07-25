@@ -43,6 +43,7 @@ if (LKL_SOURCE_PATH)
     set(LKL_PATH_OPTS   -C "${LKL_SOURCE_PATH}" "O=${LKL_BUILD}")
     set(LKL_TOOLCHAIN   "CC=${CMAKE_C_COMPILER}" "AR=${CMAKE_AR}" "LD=${CMAKE_LINKER}")
     set(LKL_FLAGS       "KCFLAGS=${CMAKE_C_FLAGS}")
+    string(REPLACE " " ";" LKL_MAKE_FLAGS ${LKL_MAKE_FLAGS}) # Prevent unintended quoting
     ExternalProject_Add(lkl_build
         SOURCE_DIR "${LKL_SOURCE_PATH}"
 
@@ -50,7 +51,8 @@ if (LKL_SOURCE_PATH)
         BINARY_DIR "${LKL_BUILD}"
 
         CONFIGURE_COMMAND ""
-        BUILD_COMMAND     make ${LKL_COMMON_OPTS} ${LKL_PATH_OPTS} ${LKL_TOOLCHAIN} ${LKL_FLAGS} ${LKL_MAKE_FLAGS} -C tools/lkl
+        BUILD_COMMAND     make ${LKL_COMMON_OPTS} ${LKL_PATH_OPTS} ${LKL_TOOLCHAIN} ${LKL_FLAGS} ${LKL_MAKE_FLAGS} -C tools/lkl clean all
+        BUILD_BYPRODUCTS  "${LKL_BUILD}/tools/lkl/lib/liblkl.so"
         INSTALL_COMMAND   ""
         USES_TERMINAL_BUILD TRUE
     )
