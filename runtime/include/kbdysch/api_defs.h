@@ -1,5 +1,5 @@
-#ifndef API_DEFS_H
-#define API_DEFS_H
+#ifndef KBDYSCH_API_DEFS_H
+#define KBDYSCH_API_DEFS_H
 
 #include <stdint.h>
 
@@ -52,4 +52,4 @@ struct my_sockaddr_storage {
   uint8_t sa_data[126];
 };
 
-#endif // API_DEFS_H
+#endif // KBDYSCH_API_DEFS_H

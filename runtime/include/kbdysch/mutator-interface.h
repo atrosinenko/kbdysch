@@ -1,8 +1,8 @@
 #ifndef KBDYSCH_MUTATOR_INTERFACE_H
 #define KBDYSCH_MUTATOR_INTERFACE_H
 
-#include "common-defs.h"
-#include "mutator-defs.h"
+#include "kbdysch/common-defs.h"
+#include "kbdysch/mutator-defs.h"
 
 typedef struct mutator_fixed_record_header debug_variable;
 

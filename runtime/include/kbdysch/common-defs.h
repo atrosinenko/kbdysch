@@ -1,5 +1,5 @@
-#ifndef COMMON_DEFS_H
-#define COMMON_DEFS_H
+#ifndef KBDYSCH_COMMON_DEFS_H
+#define KBDYSCH_COMMON_DEFS_H
 
 #define _GNU_SOURCE
 
@@ -35,4 +35,4 @@ typedef uint8_t buffer_t[MAX_BUFFER_LEN + WATERMARK_SIZE];
 // For raw buffers that could possibly contain aligned structures
 #define ALIGNED_ENOUGH __attribute__((aligned(64)))
 
-#endif // COMMON_DEFS_H
+#endif // KBDYSCH_COMMON_DEFS_H

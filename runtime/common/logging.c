@@ -1,5 +1,6 @@
-#include "kbdysch.h"
-#include "internal-defs.h"
+#include "kbdysch/logging.h"
+
+#include "kbdysch/internal-defs.h"
 
 #include <stdarg.h>
 

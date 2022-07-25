@@ -1,5 +1,5 @@
-#ifndef LOGGING_H
-#define LOGGING_H
+#ifndef KBDYSCH_LOGGING_H
+#define KBDYSCH_LOGGING_H
 
 #include <stdbool.h>
 
@@ -30,4 +30,4 @@ void log_printf(const struct fuzzer_state *state_or_null,
 #define LOG_FATAL(...) \
     log_printf(NULL, LOG_ASSERTION_FAILED, true, __VA_ARGS__)
 
-#endif // LOGGING_H
+#endif // KBDYSCH_LOGGING_H

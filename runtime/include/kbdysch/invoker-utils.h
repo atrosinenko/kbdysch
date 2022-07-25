@@ -1,8 +1,8 @@
-#ifndef INVOKER_UTILS_H
-#define INVOKER_UTILS_H
+#ifndef KBDYSCH_INVOKER_UTILS_H
+#define KBDYSCH_INVOKER_UTILS_H
 
-#include "kbdysch.h"
-#include "logging.h"
+#include "kbdysch/kbdysch.h"
+#include "kbdysch/logging.h"
 
 #include <syscall.h>
 #include <setjmp.h>
@@ -321,4 +321,4 @@ size_t do_invoke(struct fuzzer_state *state, int block_index);
 void print_summary_at_exit(struct fuzzer_state *state);
 /// \@}
 
-#endif // INVOKER_UTILS_H
+#endif // KBDYSCH_INVOKER_UTILS_H

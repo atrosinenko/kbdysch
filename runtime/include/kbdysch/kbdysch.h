@@ -1,9 +1,9 @@
-#ifndef KBDYSCH_H
-#define KBDYSCH_H
+#ifndef KBDYSCH_KBDYSCH_H
+#define KBDYSCH_KBDYSCH_H
 
-#include "common-defs.h"
-#include "compiler.h"
-#include "logging.h"
+#include "kbdysch/common-defs.h"
+#include "kbdysch/compiler.h"
+#include "kbdysch/logging.h"
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -195,4 +195,4 @@ static inline long checked_syscall_impl(
 /// Whether `x` fits in 32 bits
 #define IS_U32(x) (((x) & ~0xffffffffLLu) == 0)
 
-#endif // KBDYSCH_H
+#endif // KBDYSCH_KBDYSCH_H

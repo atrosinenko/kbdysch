@@ -1,5 +1,5 @@
-#include "kbdysch.h"
-#include "invoker-utils.h"
+#include "kbdysch/kbdysch.h"
+#include "kbdysch/invoker-utils.h"
 
 int main(int argc, const char *argv[]) {
   const char *args[] = {"", "native"};

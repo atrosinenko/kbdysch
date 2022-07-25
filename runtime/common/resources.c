@@ -1,8 +1,8 @@
-#include "kbdysch.h"
+#include "kbdysch/kbdysch.h"
 
-#include "internal-defs.h"
-#include "invoker-utils.h"
-#include "mutator-interface.h"
+#include "kbdysch/internal-defs.h"
+#include "kbdysch/invoker-utils.h"
+#include "kbdysch/mutator-interface.h"
 
 #include <stdint.h>
 #include <unistd.h>

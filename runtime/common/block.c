@@ -1,9 +1,8 @@
-#include "block.h"
-#include "kbdysch.h"
+#include "kbdysch/block.h"
 
-#include "internal-defs.h"
-#include "invoker-utils.h"
-#include "mutator-interface.h"
+#include "kbdysch/internal-defs.h"
+#include "kbdysch/invoker-utils.h"
+#include "kbdysch/mutator-interface.h"
 
 #include <fcntl.h>
 

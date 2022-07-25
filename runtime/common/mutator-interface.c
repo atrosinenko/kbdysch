@@ -1,5 +1,5 @@
-#include "mutator-interface.h"
-#include "mutator-defs.h"
+#include "kbdysch/mutator-interface.h"
+#include "kbdysch/mutator-defs.h"
 
 #include <assert.h>
 #include <stdbool.h>

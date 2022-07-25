@@ -1,8 +1,8 @@
-#ifndef INTERNAL_DEFS_H
-#define INTERNAL_DEFS_H
+#ifndef KBDYSCH_INTERNAL_DEFS_H
+#define KBDYSCH_INTERNAL_DEFS_H
 
-#include "kbdysch.h"
-#include "block.h"
+#include "kbdysch/kbdysch.h"
+#include "kbdysch/block.h"
 
 #include <setjmp.h>
 
@@ -92,4 +92,4 @@ struct fuzzer_state {
 
 void res_close_all_fds(struct fuzzer_state *state);
 
-#endif // INTERNAL_DEFS_H
+#endif // KBDYSCH_INTERNAL_DEFS_H

@@ -11,9 +11,9 @@ object InvokerConstants {
   )
 
   val InvokerHeader = Seq(
-    "#include \"kbdysch.h\"",
-    "#include \"invoker-utils.h\"",
-    "#include \"api_defs.h\"",
+    "#include \"kbdysch/kbdysch.h\"",
+    "#include \"kbdysch/invoker-utils.h\"",
+    "#include \"kbdysch/api_defs.h\"",
     "",
     "#include <syscall.h>",
     "",

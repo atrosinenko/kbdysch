@@ -1,6 +1,6 @@
-#include "kbdysch.h"
-#include "invoker-utils.h"
-#include "mutator-interface.h"
+#include "kbdysch/kbdysch.h"
+#include "kbdysch/invoker-utils.h"
+#include "kbdysch/mutator-interface.h"
 
 static const int MAX_INPUT_OPS = 25;
 

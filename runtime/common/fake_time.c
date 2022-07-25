@@ -5,7 +5,7 @@
 #define time time_real
 #define select select_real
 
-#include "kbdysch.h"
+#include "kbdysch/kbdysch.h"
 #include <stdint.h>
 #include <time.h>
 #include <dlfcn.h>

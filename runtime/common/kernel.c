@@ -1,8 +1,8 @@
-#include "kbdysch.h"
+#include "kbdysch/kbdysch.h"
 
-#include "internal-defs.h"
-#include "invoker-utils.h"
-#include "block.h"
+#include "kbdysch/internal-defs.h"
+#include "kbdysch/invoker-utils.h"
+#include "kbdysch/block.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>

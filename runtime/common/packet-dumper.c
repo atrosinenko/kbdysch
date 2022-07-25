@@ -1,5 +1,5 @@
-#include "packet-dumper.h"
-#include "logging.h"
+#include "kbdysch/packet-dumper.h"
+#include "kbdysch/logging.h"
 
 #include <stdint.h>
 #include <stdlib.h>

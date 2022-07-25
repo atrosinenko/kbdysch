@@ -1,4 +1,4 @@
-#include "kbdysch.h"
+#include "kbdysch/kbdysch.h"
 
 #include <syscall.h>
 #include <linux/bpf.h>
