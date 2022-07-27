@@ -4,6 +4,7 @@ option(USE_LKL "Use Linux Kernel Library (otherwise just build invokers for the 
 # Build LKL together with kbdysch or ...
 set(LKL_SOURCE_PATH  ""    CACHE STRING "Path to the sources of LKL")
 set(LKL_MAKE_FLAGS   "-j8" CACHE STRING "Extra make flags for LKL")
+option(LKL_LINK_STATIC "Link to static version of LKL (internal build only)" OFF)
 
 # ... use an existing build
 set(LKL_INCLUDE_PATH "" CACHE STRING "Full path to the tools/lkl/include of LKL build")
@@ -44,6 +45,11 @@ if (LKL_SOURCE_PATH)
     set(LKL_TOOLCHAIN   "CC=${CMAKE_C_COMPILER}" "AR=${CMAKE_AR}" "LD=${CMAKE_LINKER}")
     set(LKL_FLAGS       "KCFLAGS=${CMAKE_C_FLAGS}")
     string(REPLACE " " ";" LKL_MAKE_FLAGS ${LKL_MAKE_FLAGS}) # Prevent unintended quoting
+    if (LKL_LINK_STATIC)
+        set(LKL_BUILD_ARTIFACT "${LKL_BUILD}/tools/lkl/liblkl.a")
+    else()
+        set(LKL_BUILD_ARTIFACT "${LKL_BUILD}/tools/lkl/lib/liblkl.so")
+    endif()
     ExternalProject_Add(lkl_build
         SOURCE_DIR "${LKL_SOURCE_PATH}"
 
@@ -52,11 +58,11 @@ if (LKL_SOURCE_PATH)
 
         CONFIGURE_COMMAND ""
         BUILD_COMMAND     make ${LKL_COMMON_OPTS} ${LKL_PATH_OPTS} ${LKL_TOOLCHAIN} ${LKL_FLAGS} ${LKL_MAKE_FLAGS} -C tools/lkl clean all
-        BUILD_BYPRODUCTS  "${LKL_BUILD}/tools/lkl/lib/liblkl.so"
+        BUILD_BYPRODUCTS  ${LKL_BUILD_ARTIFACT}
         INSTALL_COMMAND   ""
         USES_TERMINAL_BUILD TRUE
     )
-    target_link_libraries(lkl INTERFACE "${LKL_BUILD}/tools/lkl/lib/liblkl.so")
+    target_link_libraries(lkl INTERFACE ${LKL_BUILD_ARTIFACT})
     target_include_directories(lkl INTERFACE "${LKL_BUILD}/tools/lkl/include" "${LKL_SOURCE_PATH}/tools/lkl/include")
     add_dependencies(lkl lkl_build)
 else()
