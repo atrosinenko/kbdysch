@@ -2,8 +2,14 @@ cmake_minimum_required(VERSION 3.10)
 project(kbdysch)
 include(CTest)
 
+include(runtime/common/Helpers.cmake)
+
 set(KBDYSCH_STANDALONE_C_COMPILER "cc" CACHE STRING "C compiler for non-instrumented standalone executables")
 set(KBDYSCH_PERFORM_AFL_TESTS OFF CACHE BOOL "Perform tests that depend on AFL++")
+
+CheckBooleanPreprocessorExpression(
+    "__SANITIZE_ADDRESS__ || __has_feature(address_sanitizer)"
+    KBDYSCH_ASAN_ENABLED)
 
 function(ConfigureNonInstrumentedDirectory)
     set(CMAKE_C_COMPILER ${KBDYSCH_STANDALONE_C_COMPILER} PARENT_SCOPE)

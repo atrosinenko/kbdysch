@@ -1,3 +1,5 @@
+include(CheckCSourceCompiles)
+
 # Register auto-generated invoker located in runtime/generated/invoker-<NAME>.c
 function(RegisterInvoker name)
   if (USE_INVOKERS)
@@ -40,4 +42,20 @@ function(TestHarnessWithArguments name)
       COMMAND ${CMAKE_SOURCE_DIR}/utils/test-map-stability.sh $<TARGET_FILE:${name}> ${args}
     )
   endif()
+endfunction()
+
+function(CheckBooleanPreprocessorExpression expression out_var)
+    set(test_source "
+#if !defined(__has_feature)
+#define __has_feature(x) 0
+#endif
+#if !(${expression})
+#error
+#endif
+")
+    # Let's check everytime, in case CMAKE_C_FLAGS changed
+    unset(${out_var} CACHE)
+    # Preprocess only, do not complain on absent main()
+    set(CMAKE_REQUIRED_FLAGS "-E")
+    check_c_source_compiles(${test_source} ${out_var})
 endfunction()
