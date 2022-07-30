@@ -4,12 +4,17 @@
 
 #include <assert.h>
 #include <fcntl.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#define BYTE_OFFSET(buf, offset) (((char *)(buf)) + (offset))
+#define FUSE_HEADER_SIZE 40
+#define FUSE_OPCODE(buf) (*(uint32_t *)BYTE_OFFSET(buf, 4))
 
 #define TO_KERNEL "dump_%d.fuse_to_kernel"
 #define FROM_KERNEL "dump_%d.kernel_to_fuse"
@@ -80,22 +85,37 @@ ssize_t read_dumped_message(const char *fmt, int index,
 
 void fuse_read(int fuse_fd, int index) {
   static char expected_data[1024];
-  ssize_t expected_res = read_dumped_message(
+  ssize_t expected_length = read_dumped_message(
         FROM_KERNEL, index, expected_data, sizeof(expected_data));
-  ssize_t res = read(fuse_fd, fuse_buf, sizeof(fuse_buf));
-  fprintf(stderr, "FUSE read() returned %zd\n", res);
-  assert(res >= 0 && res <= sizeof(fuse_buf));
-  if (res != expected_res)
-    fprintf(stderr, "WARN: Expected size: %zd\n", expected_res);
-  else if (memcmp(fuse_buf, expected_data, res) != 0)
-    fprintf(stderr, "WARN: Contents differ.\n");
+  uint32_t expected_opcode = FUSE_OPCODE(expected_data);
+
+  fprintf(stderr, "FUSE #%d reading...\n", index);
+  ssize_t length = read(fuse_fd, fuse_buf, sizeof(fuse_buf));
+  uint32_t opcode = FUSE_OPCODE(fuse_buf);
+  fprintf(stderr, "FUSE #%d read() returned %zd (opcode 0x%x)\n", index, length, opcode);
+  assert(length >= 0 && length <= sizeof(fuse_buf));
+
+  if (opcode != expected_opcode)
+    fprintf(stderr, "WARN: Expected opcode: 0x%x\n", expected_opcode);
+
+  if (length != expected_length)
+    fprintf(stderr, "WARN: Expected size: %zd\n", expected_length);
+  else {
+    char *payload = BYTE_OFFSET(fuse_buf, FUSE_HEADER_SIZE);
+    char *expected_payload = BYTE_OFFSET(expected_data, FUSE_HEADER_SIZE);
+    size_t payload_size = length < FUSE_HEADER_SIZE ? 0 : length - FUSE_HEADER_SIZE;
+    if (memcmp(fuse_buf, expected_data, FUSE_HEADER_SIZE))
+      fprintf(stderr, "DEBUG: Headers differ.\n");
+    if (memcmp(payload, expected_payload, payload_size))
+      fprintf(stderr, "WARN: Payloads differ.\n");
+  }
 }
 
 void fuse_write(int fuse_fd, int index) {
   ssize_t length = read_dumped_message(
         TO_KERNEL, index, fuse_buf, sizeof(fuse_buf));
   ssize_t res = write(fuse_fd, fuse_buf, length);
-  fprintf(stderr, "FUSE write() returned %zd\n", res);
+  fprintf(stderr, "FUSE #%d write() returned %zd\n", index, res);
   if (res != length)
     fprintf(stderr, "WARN: Expected %zd.\n", length);
 }
