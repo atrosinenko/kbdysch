@@ -53,6 +53,7 @@ typedef struct {
  */
 typedef struct {
   const char *file_names[MAX_FILE_NAME_COUNT]; ///< File names relative to the FS root
+  const char *file_basenames[MAX_FILE_NAME_COUNT]; ///< Base names corresponding to `file_names` (should never be freed explicitly)
 
   const char *strings[MAX_STRING_COUNT]; ///< Known strings
   uint32_t string_hash[MAX_STRING_COUNT]; ///< Some non-cryptographic hashes of these strings

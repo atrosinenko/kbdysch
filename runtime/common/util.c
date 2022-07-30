@@ -98,6 +98,7 @@ struct fuzzer_state *create_state(int argc, const char *argv[], stopper_func_t s
 
   result->constant_state.native_mode = argc == 2 && (strcmp(argv[1], "native") == 0);
   result->mutable_state.file_names[0] = "";
+  result->mutable_state.file_basenames[0] = "";
   result->current_state.file_name_count = 1;
 
   for (int i = 0; i < sizeof(known_strings) / sizeof(known_strings[0]); ++i) {

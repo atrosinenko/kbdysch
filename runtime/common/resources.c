@@ -351,12 +351,12 @@ static int res_create_file_name(struct fuzzer_state *state)
 
   // attach the newly created component to the selected existing one
   char *new_name =  malloc(MAX_FILE_NAME_LEN);
-  int new_index = state->current_state.file_name_count;
+  int new_index = state->current_state.file_name_count++;
   // TODO Do not discard `const` qualifier somehow?
   free((void *) state->mutable_state.file_names[new_index]);
-  state->mutable_state.file_names[new_index] = new_name;
-  state->current_state.file_name_count += 1;
   snprintf(new_name, MAX_FILE_NAME_LEN, "%s/%s", state->mutable_state.file_names[chain_to], tmp_buf);
+  state->mutable_state.file_names[new_index] = new_name;
+  state->mutable_state.file_basenames[new_index] = strrchr(new_name, '/');
   DEBUG_INC(file_names_created);
   return new_index;
 }
