@@ -33,6 +33,7 @@ DEBUG_COUNTER(file_names_reused, "File names reused")
 DEBUG_COUNTER(file_names_created, "File names created")
 DEBUG_COUNTER(valid_fds, "Valid FDs")
 DEBUG_COUNTER(invalid_fds, "Invalid FDs")
+DEBUG_COUNTER(unique_fds, "Unique FDs")
 
 jmp_buf *res_get_stopper_env(struct fuzzer_state *state)
 {
@@ -443,10 +444,21 @@ void res_process_fd(struct fuzzer_state *state, const char *name, int reference,
   } else {
     DEBUG_INC(invalid_fds);
     LOG_RETURN("<ERR: %s>", STRERROR(state, value));
+    return;
+  }
+  if (state->constant_state.part_count == 1) {
+    // TODO Is it safe in comparison mode?
+    for (int i = 0; i < state->partitions[part].registered_fds_count; ++i) {
+      if (state->partitions[part].registered_fds[i] == value)
+        return;
+    }
   }
   // Consuming FD here may clash with manually opened FD (say, for device file).
-  if (!state->mutable_state.syscalls_inhibited)
-    state->partitions[part].registered_fds[state->partitions[part].registered_fds_count++] = value;
+  if (!state->mutable_state.syscalls_inhibited) {
+    DEBUG_INC(unique_fds);
+    int index = state->partitions[part].registered_fds_count++;
+    state->partitions[part].registered_fds[index] = value;
+  }
 }
 
 void res_process_length(struct fuzzer_state *state, const char *name, uint64_t refLength, uint64_t length)
