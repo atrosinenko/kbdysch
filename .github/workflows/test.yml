@@ -12,5 +12,7 @@ jobs:
     steps:
       - name: Perform checkout
         uses: actions/checkout@v3
+      - name: Install
+        run: sudo apt-get install -y
       - name: Install other dependencies
         run: sudo apt-get install --no-install-recommends -y cmake libpth-dev clang afl++
