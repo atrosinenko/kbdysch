@@ -2,7 +2,7 @@ name: Post-commit check
 on: [push]
 jobs:
   generate-invokers:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps:
       - name: Perform checkout
@@ -20,34 +20,58 @@ jobs:
         with:
           name: invokers
           path: runtime/generated
-
   build-and-test:
-    runs-on: ubuntu-18.04
     timeout-minutes: 10
     needs: generate-invokers
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-18.04, ubuntu-20.04, ubuntu-22.04]
+        compiler: [clang, gcc]
+        extra_cmake_opts: ['']
+        extra_ubuntu_packages: ['']
         include:
-          - compiler: clang
-            cmake_opts: ''
-          - compiler: clang
-            cmake_opts: '-DCMAKE_C_FLAGS="-fsanitize=undefined"'
-          - compiler: clang
-            cmake_opts: '-DCMAKE_C_FLAGS="-fsanitize=address"'
-          - compiler: afl-clang-fast
-            cmake_opts: '-DKBDYSCH_PERFORM_AFL_TESTS=ON'
+          - os: ubuntu-22.04
+            compiler: clang
+            extra_cmake_opts: '-DCMAKE_C_FLAGS="-fsanitize=undefined"'
+            extra_ubuntu_packages:
+          - os: ubuntu-22.04
+            compiler: clang
+            extra_cmake_opts: '-DCMAKE_C_FLAGS="-fsanitize=address"'
+            extra_ubuntu_packages:
+          - os: ubuntu-22.04
+            compiler: afl-clang-fast
+            extra_cmake_opts: '-DKBDYSCH_PERFORM_AFL_TESTS=ON'
+            extra_ubuntu_packages: afl++
+          - os: ubuntu-22.04
+            compiler: clang
+            extra_cmake_opts: '-G Ninja'
+            extra_ubuntu_packages: ninja-build
+    runs-on: ${{matrix.os}}
     steps:
       - name: Perform checkout
         uses: actions/checkout@v3
+      - name: Disable third-party software
+        # I would like to check the specific versions of build tools (especially CMake)
+        run: sudo mv /usr/local /usr/local.orig
       - name: Install other dependencies
-        run: sudo apt-get install --no-install-recommends -y cmake libpth-dev clang afl-clang
+        run: sudo apt-get install --no-install-recommends -y cmake libpth-dev clang ${{matrix.extra_ubuntu_packages}}
+      - name: Print summary
+        run: |
+          echo "OS: ${{matrix.os}}, compiler: ${{matrix.compiler}}"
+          echo "Extra Ubuntu packages: [${{matrix.extra_ubuntu_packages}}]"
+          echo "Extra CMake options: [${{matrix.extra_cmake_opts}}]"
+          gcc --version
+          clang --version
+          afl-clang-fast || true
+          cmake --version
       - name: Restore invokers from artifacts
         uses: actions/download-artifact@v3
         with:
           name: invokers
           path: runtime/generated
       - name: Run CMake
-        run: cmake -S . -B ./build -DUSE_LKL=OFF -DUSE_DUMMY_LKL=ON -DCMAKE_C_COMPILER=${{ matrix.compiler }} ${{ matrix.cmake_opts }}
+        run: mkdir build && cd build && cmake .. -DUSE_LKL=OFF -DUSE_DUMMY_LKL=ON -DCMAKE_C_COMPILER=${{matrix.compiler}} ${{matrix.extra_cmake_opts}}
       - name: Build harnesses
         run: cmake --build ./build
       - name: Run tests
