@@ -21,4 +21,4 @@ jobs:
       - name: Install clang
         run: sudo apt-get install --no-install-recommends -y clang
       - name: Install afl++
-        run: sudo apt-get install --no-install-recommends -y afl++
+        run: sudo apt install --no-install-recommends -y afl++
