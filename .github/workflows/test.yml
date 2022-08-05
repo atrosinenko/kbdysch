@@ -1,0 +1,16 @@
+name: Test
+on: [push]
+jobs:
+  install-dependencies:
+    runs-on: ubuntu-18.04
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        include:
+          - compiler: clang
+            cmake_opts: ''
+    steps:
+      - name: Perform checkout
+        uses: actions/checkout@v3
+      - name: Install other dependencies
+        run: sudo apt-get install --no-install-recommends -y cmake libpth-dev clang afl++
