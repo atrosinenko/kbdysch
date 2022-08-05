@@ -40,7 +40,7 @@ jobs:
       - name: Perform checkout
         uses: actions/checkout@v3
       - name: Install other dependencies
-        run: sudo apt-get install --no-install-recommends -y cmake libpth-dev clang afl++
+        run: sudo apt-get install --no-install-recommends -y cmake libpth-dev clang afl
       - name: Restore invokers from artifacts
         uses: actions/download-artifact@v3
         with:
