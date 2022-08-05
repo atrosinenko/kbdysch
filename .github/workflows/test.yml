@@ -1,24 +1,37 @@
 name: Test
 on: [push]
 jobs:
-  install-dependencies:
+  generate-invokers:
     runs-on: ubuntu-18.04
     timeout-minutes: 10
-    strategy:
-      matrix:
-        include:
-          - compiler: clang
-            cmake_opts: ''
     steps:
       - name: Perform checkout
         uses: actions/checkout@v3
-      - name: Install
-        run: sudo apt-get install -y
-      - name: Install cmake
-        run: sudo apt-get install --no-install-recommends -y cmake
-      - name: Install libpth-dev
-        run: sudo apt-get install --no-install-recommends -y libpth-dev
-      - name: Install clang
-        run: sudo apt-get install --no-install-recommends -y clang
-      - name: Install afl++
-        run: sudo apt install --no-install-recommends -y afl++
+      - name: Install Java 11
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '11'
+          cache: 'sbt'
+      - name: Generate invokers
+        run: ./update_invokers.sh
+      - name: Save invokers as artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: invokers
+          path: runtime/generated
+
+  build-and-test:
+    runs-on: ubuntu-18.04
+    timeout-minutes: 10
+    needs: generate-invokers
+    steps:
+      - name: Perform checkout
+        uses: actions/checkout@v3
+      - name: Install other dependencies
+        run: sudo apt-get install --no-install-recommends -y cmake libpth-dev clang afl
+      - name: Restore invokers from artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: invokers
+          path: runtime/generated
