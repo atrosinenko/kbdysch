@@ -75,4 +75,4 @@ jobs:
       - name: Build harnesses
         run: cmake --build ./build
       - name: Run tests
-        run: ctest --output-on-failure --test-output-size-failed 65536 --test-dir ./build
+        run: cd build && ctest --output-on-failure --test-output-size-failed 65536
