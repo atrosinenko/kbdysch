@@ -25,8 +25,6 @@ endif()
 
 if (FAKE_TIME)
   add_library(fake_time OBJECT fake_time.c)
-  target_link_libraries(fake_time -ldl)
-  target_link_libraries(common_lib fake_time)
 endif()
 
 target_link_libraries(common_lib -lpth -lrt -pthread)

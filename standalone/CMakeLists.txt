@@ -1,7 +1,7 @@
 ConfigureNonInstrumentedDirectory()
 
 if(NOT KBDYSCH_ASAN_ENABLED)
-    add_link_options(-static)
+    add_compile_options(-static)
 endif()
 
 add_executable(bpf bpf.c)
