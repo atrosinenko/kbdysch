@@ -38,17 +38,20 @@ function(RegisterHarnessWithInvoker name invoker_name)
   endif()
 endfunction()
 
-function(TestHarnessWithArguments name)
-  set(args ${ARGV})
-  list(REMOVE_AT args 0)
+function(TestHarness name)
+  cmake_parse_arguments(PARSE_ARGV 1 TestHarness "" "" "ARGS;FILES")
+  if (TestHarness_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR "Unknown arguments: ${TestHarness_UNPARSED_ARGUMENTS}")
+  endif()
+  string(REPLACE ";" " " files "${TestHarness_FILES}")
   add_test(
     NAME "run-${name}"
-    COMMAND ${CMAKE_SOURCE_DIR}/utils/test-run.sh $<TARGET_FILE:${name}> ${args}
+    COMMAND ${CMAKE_SOURCE_DIR}/utils/cmake/test-run.sh "${files}" $<TARGET_FILE:${name}> ${TestHarness_ARGS}
   )
   if (KBDYSCH_PERFORM_AFL_TESTS)
     add_test(
       NAME "stability-${name}"
-      COMMAND ${CMAKE_SOURCE_DIR}/utils/test-map-stability.sh $<TARGET_FILE:${name}> ${args}
+      COMMAND ${CMAKE_SOURCE_DIR}/utils/cmake/test-map-stability.sh "${files}" $<TARGET_FILE:${name}> ${TestHarness_ARGS}
     )
   endif()
 endfunction()

@@ -1,6 +1,12 @@
 #!/bin/bash -e
 
+source "$(dirname "$0")/test-functions.inc"
+create_files "$1"
+shift
+
 input="$(seq 1000 | tr -d " \n")"
+
+cd "$test_cwd"
 
 for i in `seq 10`; do
   echo "Iteration $i..."
