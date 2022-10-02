@@ -1,5 +1,10 @@
 #include "kbdysch/mutator-interface.h"
 #include "kbdysch/mutator-defs.h"
+#include "kbdysch/hashing.h"
+#include "kbdysch/logging.h"
+
+// FIXME factor out: input-data.h
+#include "kbdysch/invoker-utils.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -9,93 +14,97 @@
 #include <sys/types.h>
 #include <sys/shm.h>
 
-#define WORD_SIZE sizeof(mutator_shm_word)
-#define NUM_WORDS(bytes) (((bytes) + WORD_SIZE - 1) / WORD_SIZE)
+struct mutator_shm {
+  uint8_t *shm_segment;
+  unsigned offset;
+  size_t num_bytes;
+};
 
 static bool initialized;
-static bool fixed_size_buffer_closed;
-static mutator_shm_word *shm_words;
-static unsigned current_word;
+static struct mutator_shm vars_shm;
+static struct mutator_shm log_shm;
+
+static void get_shm_segment(struct mutator_shm *shm, const char *env_name, size_t size) {
+  shm->offset = 0;
+  shm->num_bytes = size;
+
+  const char *shm_id_str = getenv(env_name);
+  if (!shm_id_str) {
+    WARN(NULL, "%s variable not found, allocating dummy segment", env_name);
+    shm->shm_segment = malloc(size);
+    return;
+  }
+
+  int shm_id = atoi(shm_id_str);
+  shm->shm_segment = shmat(shm_id, NULL, 0);
+  CHECK_THAT(shm->shm_segment != (void *)-1);
+}
+
+static uint8_t *alloc_in_shm(struct mutator_shm *shm, size_t size, size_t extra_bytes) {
+  if (shm->offset + size + extra_bytes > shm->num_bytes)
+    return NULL;
+
+  uint8_t *result = &shm->shm_segment[shm->offset];
+  shm->offset += size;
+  memset(result, 0, size + extra_bytes);
+
+  return result;
+}
 
 void mutator_init(void) {
   if (initialized)
     return;
   initialized = true;
 
-  const char *shm_str = getenv(MUTATOR_ENV_NAME);
-  if (!shm_str)
-    return;
-
-  shm_words = shmat(atoi(shm_str), NULL, 0);
-  current_word = 0;
+  get_shm_segment(&vars_shm, MUTATOR_SHM_VARS_ENV_NAME, MUTATOR_SHM_VARS_BYTES);
+  get_shm_segment(&log_shm, MUTATOR_SHM_LOG_ENV_NAME, MUTATOR_SHM_LOG_BYTES);
+  TRACE(NULL, "Mutator interface initialized");
 }
 
-static void *allocate_in_shm(size_t bytes, size_t extra_words) {
-  if (!initialized)
-    mutator_init();
+void mutator_init_input(struct fuzzer_state *state) {
+  char hash[HASH_CHARS + 1];
+  kbdysch_compute_hash(hash, res_get_data_ptr(state), res_get_input_length(state));
+  hash[HASH_CHARS] = '\0';
 
-  if (!shm_words)
-    return NULL;
-
-  size_t words = NUM_WORDS(bytes);
-  if (current_word + words + extra_words > MUTATOR_SHM_SIZE_WORDS)
-    return NULL;
-
-  void *result = &shm_words[current_word];
-  memset(result, 0, WORD_SIZE * words);
-  current_word += words;
-
-  return result;
+  void *ptr = alloc_in_shm(&log_shm, HASH_CHARS, sizeof(struct mutator_log_record_header));
+  memcpy(ptr, hash, HASH_CHARS);
+  TRACE(state, "Mutator input initialized, hash: %s", hash);
 }
 
-#define ALLOC_SHM_VAR(type, name) \
-  type *name = (type *)allocate_in_shm(sizeof(type), 0)
+static struct mutator_var_header *allocate_mutator_var(
+    int type, const char *name, size_t bytes_per_element, size_t max_elements) {
 
-static struct mutator_fixed_record_header *allocate_fixed_record(
-    int type, const char *name, size_t element_words, size_t max_elements) {
-  assert(!fixed_size_buffer_closed);
+  mutator_init();
+
+  struct mutator_var_header *header;
 
   size_t name_bytes = strlen(name);
+  size_t elements_offset = sizeof(*header) + name_bytes;
+  size_t elements_bytes = bytes_per_element * max_elements;
 
-  ALLOC_SHM_VAR(struct mutator_fixed_record_header, header);
+  unsigned total_bytes = sizeof(*header) + name_bytes + elements_bytes;
+
+  uint8_t *raw_header_ptr = alloc_in_shm(&vars_shm, total_bytes, sizeof(*header));
+  header = (struct mutator_var_header *)raw_header_ptr;
   if (!header)
     return NULL;
 
   header->type = type;
-  header->name_words = NUM_WORDS(name_bytes);
-  header->element_words = element_words;
+  header->name_bytes = name_bytes;
+  header->bytes_per_element = bytes_per_element;
   header->max_num_elements = max_elements;
 
-  char *name_var = allocate_in_shm(name_bytes, 0);
-  if (!name_var)
-    return NULL;
-  memcpy(name_var, name, name_bytes);
-
-  allocate_in_shm(WORD_SIZE * element_words * max_elements, 0);
+  memcpy(&raw_header_ptr[sizeof(*header)], name, name_bytes);
 
   return header;
 }
 
 debug_variable *mutator_allocate_counters(const char *name, size_t max_counters) {
-  return allocate_fixed_record(MUTATOR_FIXED_RECORD_COUNTERS, name,
-                               NUM_WORDS(sizeof(uint64_t)), max_counters);
+  return allocate_mutator_var(MUTATOR_VAR_COUNTERS, name, sizeof(uint64_t), max_counters);
 }
 
 debug_variable *mutator_allocate_strings(const char *name, size_t max_strlen, size_t max_strings) {
-  return allocate_fixed_record(MUTATOR_FIXED_RECORD_STRINGS, name,
-                               NUM_WORDS(max_strlen), max_strings);
-}
-
-void close_fixed_section(void) {
-  assert(initialized);
-  if (!shm_words)
-    return;
-  fixed_size_buffer_closed = true;
-  allocate_fixed_record(MUTATOR_FIXED_RECORD_STOP, "END", 0, 0);
-  mutator_shm_word *mark = allocate_in_shm(WORD_SIZE, 1);
-  if (!mark)
-    return;
-  *mark = MUTATOR_END_OF_FIXED_SECTION_MARK;
+  return allocate_mutator_var(MUTATOR_VAR_STRINGS, name, max_strlen, max_strings);
 }
 
 void *mutator_variable_get_ptr(debug_variable *header, int index) {
@@ -103,29 +112,46 @@ void *mutator_variable_get_ptr(debug_variable *header, int index) {
     return NULL;
 
   uint8_t *ptr = (uint8_t *)header;
-  ptr += sizeof(struct mutator_fixed_record_header);
-  ptr += WORD_SIZE * header->name_words;
-  ptr += WORD_SIZE * header->element_words * index;
+  ptr += sizeof(struct mutator_var_header);
+  ptr += header->name_bytes;
+  ptr += header->bytes_per_element * index;
   return ptr;
 }
 
-static void mutator_put_insn(unsigned opcode, unsigned *args, unsigned num_args) {
-  assert(initialized);
-  if (!fixed_size_buffer_closed)
-    close_fixed_section();
-  mutator_shm_word *words = allocate_in_shm((1 + num_args) * WORD_SIZE, 2);
-  if (!words)
-    return;
+static void *alloc_log_impl(unsigned type, size_t payload_size) {
+  struct mutator_log_record_header *header;
+  size_t total_bytes = sizeof(*header) + payload_size;
+  uint8_t *raw_header_ptr = alloc_in_shm(&log_shm, total_bytes, sizeof(*header));
+  if (!raw_header_ptr)
+    return NULL;
 
-  words[0] = opcode;
-  for (unsigned i = 0; i < num_args; ++i)
-    words[1 + i] = args[i];
-  // to be overwritten
-  words[1 + num_args] = MUTATOR_OPCODE_STOP;
-  words[2 + num_args] = MUTATOR_END_OF_BYTECODE_SECTION_MARK;
+  header = (struct mutator_log_record_header *)raw_header_ptr;
+
+  header->type = type;
+  header->size = total_bytes;
+
+  return &raw_header_ptr[sizeof(*header)];
 }
 
+#define ALLOC_LOG_PAYLOAD(record_type_id, var_type) \
+    var_type *payload = (var_type *)alloc_log_impl(record_type_id, sizeof(var_type)); \
+    if (!payload) return;
+
 void mutator_write_trim_offset(unsigned offset) {
-  unsigned args[] = {offset};
-  mutator_put_insn(MUTATOR_OPCODE_SET_OFFSET, args, 1);
+  ALLOC_LOG_PAYLOAD(MUTATOR_LOG_SET_OFFSET, struct mutator_log_set_offset);
+  payload->offset = offset;
+}
+
+void mutator_open_resource(unsigned kind, unsigned id) {
+  ALLOC_LOG_PAYLOAD(MUTATOR_LOG_NEW_RES, struct mutator_log_new_resource);
+  payload->kind = kind;
+  payload->id = id;
+}
+
+void mutator_ref_resource(unsigned kind, unsigned id, unsigned id_bytes, unsigned offset) {
+  ALLOC_LOG_PAYLOAD(MUTATOR_LOG_REF_RES, struct mutator_log_ref_resource);
+  payload->kind = kind;
+  payload->id = id;
+  payload->id_bytes = id_bytes;
+  payload->offset = offset;
 }

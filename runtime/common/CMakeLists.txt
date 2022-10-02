@@ -1,5 +1,6 @@
 set(COMMON_LIB_SOURCES
   block.c
+  hashing.c
   kernel.c
   logging.c
   mutator-interface.c

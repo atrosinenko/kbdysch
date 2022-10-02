@@ -1,176 +1,229 @@
 #include "kbdysch/mutator-defs.h"
+#include "kbdysch/hashing.h"
+#include "afl-interface-decls.h"
 
 #include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include <sys/ipc.h>
 #include <sys/shm.h>
 
-#define FATAL(fmt, ...) { fprintf(stderr, (fmt), __VA_ARGS__); abort(); }
+#define DEBUG_ENV_NAME       "KBDYSCH_MUTATOR_DEBUG"
+#define NUM_SPLICES_ENV_NAME "KBDYSCH_MUTATOR_NUM_SPLICES"
+#define DEFAULT_NUM_SPLICES 4
+
+#define FATAL(fmt, ...) { fprintf(stderr, "MUTATOR: " fmt, __VA_ARGS__); abort(); }
+#define ERR(fmt, ...) { if (error_log) fprintf(error_log, fmt, __VA_ARGS__); }
+
 #define DECL_WITH_TYPE(type, new_name, ptr) \
   type *new_name = (type *)(ptr)
 
-#define DATA_ARG void *data
-#define DECLARE_STATE_VAR \
-  DECL_WITH_TYPE(struct mutator_state, state, data)
+#define DEBUG_TRACE_FUNC // fprintf(stderr, "MUTATOR: %s: called\n", __func__)
+#define DEBUG(fmt, ...)  // fprintf(stderr, "MUTATOR: %s: " fmt, __func__, __VA_ARGS__)
 
-#define DEBUG_TRACE_FUNC // fprintf(stderr, "%s: called\n", __func__)
-#define DEBUG(fmt, ...)  // fprintf(stderr, "%s: " fmt, __func__, __VA_ARGS__)
+static FILE *error_log;
 
-#define BUFFER_INFO_REQUEST_PENDING (-2u)
-#define BUFFER_INFO_REQUESTED       (-1u)
-
-struct fixed_record_desc {
-  int type;
-  mutator_shm_word *num_elements;
-  int size_of_element, max_elements;
+struct mutator_variable_desc {
+  unsigned type;
+  mutator_num_elements_t *num_elements;
+  unsigned bytes_per_element, max_elements;
   char *name;
   void *data;
 };
 
-struct mutator_state {
-  // Low-level details
+struct mutator_shm {
   int shm_id;
-  void *shm_segment;
-
-  // Current parsing state
-  bool fixed_section_parsed;
-
-  // Fixed-structure section (parsed once per fuzzing session)
-  int num_fixed_records;
-  struct fixed_record_desc fixed_records[MUTATOR_MAX_FIXED_RECORDS];
-  void *shm_bytecode_start;
-
-  // Not SHM-related variables
-  uint8_t input[MUTATOR_MAX_TEST_CASE_LENGTH];
-  uint8_t output[MUTATOR_MAX_TEST_CASE_LENGTH];
-  unsigned original_length;
-  unsigned accepted_length;
-  unsigned proposed_length;
-
-  unsigned offsets[MUTATOR_MAX_TRIM_OFFSETS + 1];
-  unsigned num_offsets;
-
-  unsigned current_index;
+  uint8_t *shm_segment;
+  size_t num_bytes;
 };
 
-static void parse_offsets(struct mutator_state *state);
+struct mutator_temp_dir {
+#define MAX_DIR_NAME 128
+  char dir_name[MAX_DIR_NAME];
+  int dir_fd;
+};
 
-static void init_shm(struct mutator_state *state) {
+struct harness_log {
+  uint8_t raw_log[MUTATOR_MAX_LOG_BYTES];
+
+  // For convenience, offsets[num_offsets] == input_length
+  unsigned offsets[MUTATOR_MAX_OFFSETS + 1];
+  unsigned num_offsets;
+};
+
+struct mutator_state {
+  // Low-level details
+  struct mutator_shm variables_shm;
+  struct mutator_shm log_shm;
+  struct mutator_temp_dir log_dir;
+
+  // Variables area (parsed once per fuzzing session)
+  struct mutator_variable_desc variables[MUTATOR_MAX_VARIABLES];
+  int num_vars;
+  bool vars_shm_parsed;
+
+  uint8_t input[MUTATOR_MAX_TEST_CASE_LENGTH];
+  unsigned input_length;
+
+  uint8_t output[MUTATOR_MAX_TEST_CASE_LENGTH];
+  unsigned output_length;
+
+  struct harness_log current_log;
+  struct harness_log additional_log;
+  int num_splices;
+
+  bool skipped_sections[MUTATOR_MAX_OFFSETS];
+
+  unsigned current_mutation;
+  unsigned max_mutation;
+};
+
+static void init_error_logging(void) {
+  if (!getenv(DEBUG_ENV_NAME))
+    return;
+
+  char log_name[128];
+  sprintf(log_name, "/tmp/kbdysch-mutator-%d.log", getpid());
+  error_log = fopen(log_name, "w");
+  setvbuf(error_log, NULL, _IONBF, 0);
+}
+
+static void init_shm(struct mutator_shm *shm, const char *env_var_name, size_t size) {
   char buf[32];
   // Allocate SHM segment
-  state->shm_id = shmget(IPC_PRIVATE, MUTATOR_SHM_SIZE, 0600);
-  state->shm_segment = shmat(state->shm_id, NULL, 0);
+  shm->shm_id = shmget(IPC_PRIVATE, size, 0600);
+  shm->shm_segment = shmat(shm->shm_id, NULL, 0);
+  shm->num_bytes = size;
   // Make SHM discoverable by harness
-  sprintf(buf, "%d", state->shm_id);
-  setenv(MUTATOR_ENV_NAME, buf, 1);
+  sprintf(buf, "%d", shm->shm_id);
+  setenv(env_var_name, buf, 1);
 }
 
-static void drop_shm(struct mutator_state *state) {
-  shmdt(state->shm_segment);
-  shmctl(state->shm_id, IPC_RMID, NULL);
+static void drop_shm(struct mutator_shm *shm) {
+  shmdt(shm->shm_segment);
+  shmctl(shm->shm_id, IPC_RMID, NULL);
 }
 
-static bool check_in_bounds(struct mutator_state *state, void *ptr, size_t size) {
-  uintptr_t shm_start = (uintptr_t)state->shm_segment;
-  uintptr_t start = (uintptr_t)ptr;
+static void init_temp_dir(struct mutator_temp_dir *dir, const char *name) {
+  strncpy(dir->dir_name, name, MAX_DIR_NAME);
+  dir->dir_name[MAX_DIR_NAME - 1] = 0;
+  mkdtemp(dir->dir_name);
 
-  if (start < shm_start) {
-    DEBUG("Pointer %p outside of SHM segment (starting at %p).\n",
-          ptr, state->shm_segment);
+  dir->dir_fd = open(dir->dir_name, O_RDONLY);
+  assert(dir->dir_fd >= 0);
+}
+
+static void drop_temp_dir(struct mutator_temp_dir *dir) {
+  close(dir->dir_fd);
+  // TODO remove directory
+}
+
+static bool in_bounds(const void *mem_area, size_t mem_size,
+                      const void *ptr, size_t requested_size) {
+  uintptr_t mem_start = (uintptr_t)mem_area;
+  uintptr_t ptr_start = (uintptr_t)ptr;
+
+  if ((uintptr_t)ptr < (uintptr_t)mem_area) {
+    ERR("Pointer %p outside of memory area starting at %p.\n",
+        ptr, mem_area);
     return false;
   }
-  size_t offset_in_shm = start - shm_start;
-  if (offset_in_shm > MUTATOR_SHM_SIZE ||
-      size > MUTATOR_SHM_SIZE ||
-      offset_in_shm + size > MUTATOR_SHM_SIZE) {
-    DEBUG("Pointer %p at invalid offset 0x%zx in SHM segment (size 0x%zx).\n",
-          ptr, offset_in_shm, MUTATOR_SHM_SIZE);
+  size_t offset_in_mem_area = (uintptr_t)ptr - (uintptr_t)mem_area;
+  if (offset_in_mem_area > mem_size ||
+      requested_size > mem_size ||
+      offset_in_mem_area + requested_size > mem_size) {
+    ERR("Pointer %p at invalid offset 0x%zx in memory area of size 0x%zx.\n",
+        ptr, offset_in_mem_area, mem_size);
     return false;
   }
   return true;
 }
 
-static bool parse_fixed_section(struct mutator_state *state) {
-  uint8_t *current_ptr = state->shm_segment;
-  for (int current_record = 0; ; ++current_record) {
-    DEBUG("Parsing fixed record #%d...\n", current_record);
-    // Find output description structure
-    if (current_record >= MUTATOR_MAX_FIXED_RECORDS) {
-      DEBUG("Too many records (max %d supported).\n",
-            MUTATOR_MAX_FIXED_RECORDS);
-      return false;
+static void parse_variables_area(struct mutator_state *state) {
+  if (state->vars_shm_parsed)
+    return;
+  state->vars_shm_parsed = true;
+
+  struct mutator_shm *shm = &state->variables_shm;
+  uint8_t *current_ptr = shm->shm_segment;
+  for (int current_var = 0; ; ++current_var) {
+    DEBUG("Parsing variable #%d...\n", current_var);
+    if (current_var >= MUTATOR_MAX_VARIABLES) {
+      DEBUG("Too many variables (max %d supported).\n", MUTATOR_MAX_VARIABLES);
+      return;
     }
-    struct fixed_record_desc *desc = &state->fixed_records[current_record];
+    struct mutator_variable_desc *desc = &state->variables[current_var];
 
     // Check input description is in bounds
-    size_t record_size = sizeof(struct mutator_fixed_record_header);
-    if (!check_in_bounds(state, current_ptr, record_size))
-      return false;
-    DECL_WITH_TYPE(struct mutator_fixed_record_header, header, current_ptr);
-    record_size += sizeof(mutator_shm_word) *
-        (header->name_words + header->element_words * header->max_num_elements);
-    if (!check_in_bounds(state, current_ptr, record_size))
-      return false;
+    size_t total_bytes = sizeof(struct mutator_var_header);
+    if (!in_bounds(shm->shm_segment, shm->num_bytes, current_ptr, total_bytes))
+      return;
+    DECL_WITH_TYPE(struct mutator_var_header, header, current_ptr);
+    total_bytes += header->name_bytes;
+    total_bytes += header->bytes_per_element * header->max_num_elements;
+    if (!in_bounds(shm->shm_segment, shm->num_bytes, current_ptr, total_bytes))
+      return;
 
     // Parse input description
     desc->type = header->type;
-    desc->num_elements = &header->num_elements_mut;
-    desc->size_of_element = header->element_words * sizeof(mutator_shm_word);
-    desc->max_elements = header->max_num_elements;
-    size_t name_size = header->name_words * sizeof(mutator_shm_word);
-    desc->name = malloc(name_size + 1);
-    memcpy(desc->name, current_ptr + sizeof(*header), name_size);
-    desc->name[name_size] = '\0';
-    desc->data = current_ptr + sizeof(*header) + name_size;
-    DEBUG("  type = %d, size = %d x %d, name = %s\n",
-          desc->type, desc->size_of_element, desc->max_elements, desc->name);
+    desc->num_elements = &header->num_elements_real;
+    desc->bytes_per_element = (unsigned)header->bytes_per_element;
+    desc->max_elements = (unsigned)header->max_num_elements;
 
-    current_ptr += record_size;
-    switch (header->type) {
-    case MUTATOR_FIXED_RECORD_COUNTERS:
-      if (header->element_words != 2) {
-        DEBUG("Counter %s: unexpected element_words = %d.\n",
-              desc->name, (int)header->element_words);
-        return false;
+    unsigned name_bytes = header->name_bytes; // Prevent sign-extension
+    desc->name = malloc(name_bytes + 1);
+    memcpy(desc->name, &current_ptr[sizeof(*header)], name_bytes);
+    desc->name[name_bytes] = '\0';
+
+    desc->data = &current_ptr[sizeof(*header) + name_bytes];
+    DEBUG("  type = %d, size = %d x %d, name = %s\n",
+          desc->type, desc->bytes_per_element, desc->max_elements, desc->name);
+
+    current_ptr += total_bytes;
+    switch (desc->type) {
+    case MUTATOR_VAR_COUNTERS:
+      if (desc->bytes_per_element != 8) {
+        DEBUG("Counter %s: unexpected bytes_per_element = %d.\n",
+              desc->name, (int)desc->bytes_per_element);
+        return;
       }
       break;
-    case MUTATOR_FIXED_RECORD_STRINGS:
+    case MUTATOR_VAR_STRINGS:
       break;
-    case MUTATOR_FIXED_RECORD_STOP:
-      if (*(mutator_shm_word *)current_ptr != MUTATOR_END_OF_FIXED_SECTION_MARK) {
-        DEBUG("End of fixed-structure section marker: expected 0x%x, got 0x%x.\n",
-              MUTATOR_END_OF_FIXED_SECTION_MARK, *(mutator_shm_word *)current_ptr);
-        return false;
-      }
-      current_ptr += sizeof(mutator_shm_word);
-      state->num_fixed_records = current_record;
-      state->shm_bytecode_start = current_ptr;
-      state->fixed_section_parsed = true;
-      return true;
+    case MUTATOR_VAR_STOP:
+      state->num_vars = current_var;
+      return;
     default:
-      DEBUG("Unknown fixed record type: 0x%x\n", (int)header->type);
-      return false;
+      DEBUG("Unknown var record type: 0x%x\n", (int)desc->type);
+      return;
     }
   }
 }
 
-static void print_scalar_variable(struct fixed_record_desc *desc, int index) {
+static void print_scalar_variable(struct mutator_variable_desc *desc, int index) {
   switch (desc->type) {
-  case MUTATOR_FIXED_RECORD_COUNTERS: {
-    uint64_t *counters = desc->data;
+  case MUTATOR_VAR_COUNTERS: {
+    mutator_u64_var_t *counters = desc->data;
     printf("%lu", (unsigned long)counters[index]);
     break;
   }
-  case MUTATOR_FIXED_RECORD_STRINGS: {
+  case MUTATOR_VAR_STRINGS: {
     char *strings = desc->data;
-    char *str = &strings[index * desc->size_of_element];
-    str[desc->size_of_element - 1] = '\0';
+    char *str = &strings[index * desc->bytes_per_element];
+    char *str_end = &str[desc->bytes_per_element];
+    char tmp = *str_end;
+    *str_end = '\0';
     printf("'%s'", str);
+    *str_end = tmp;
     break;
   }
   default:
@@ -180,20 +233,20 @@ static void print_scalar_variable(struct fixed_record_desc *desc, int index) {
 }
 
 static void print_variables(struct mutator_state *state) {
-  for (int record_index = 0; record_index < state->num_fixed_records; ++record_index) {
-    struct fixed_record_desc *desc = &state->fixed_records[record_index];
+  for (int current_var = 0; current_var < state->num_vars; ++current_var) {
+    struct mutator_variable_desc *desc = &state->variables[current_var];
     unsigned num_elements = *desc->num_elements;
     if (num_elements > desc->max_elements) {
-      printf("!!! Too many elements: %u, using only the first %d ones.\n",
+      printf("!!! Too many elements: %u, using only the first %u ones.\n",
              num_elements, desc->max_elements);
       num_elements = desc->max_elements;
     }
     if (num_elements == 1) {
-      printf("Variable #%u:\t", record_index);
+      printf("Variable #%u:\t", current_var);
       print_scalar_variable(desc, 0);
       printf("\t - %s\n", desc->name);
     } else {
-      printf("Variable #%u: %s\n", record_index, desc->name);
+      printf("Variable #%u: %s\n", current_var, desc->name);
       for (unsigned i = 0; i < num_elements; ++i) {
         printf("- [%u] = ", i);
         print_scalar_variable(desc, i);
@@ -203,142 +256,311 @@ static void print_variables(struct mutator_state *state) {
   }
 }
 
+#define ITERATE_LOG_HEADERS(log_data, loop_body) \
+  for (int header_offset = 0; header_offset < MUTATOR_MAX_LOG_BYTES; ) { \
+    const uint8_t *ptr = &(log_data)[header_offset];                     \
+    size_t total_bytes = sizeof(struct mutator_log_record_header);       \
+    total_bytes += 16; /* FIXME payload size */                          \
+    if (!in_bounds((log_data), MUTATOR_MAX_LOG_BYTES, ptr, total_bytes)) \
+      ERR("Error parsing log, offset %d\n", header_offset);              \
+    DECL_WITH_TYPE(struct mutator_log_record_header, header, ptr);       \
+    const void *payload = &ptr[sizeof(*header)];                         \
+    loop_body;                                                           \
+    if (header->type == MUTATOR_LOG_STOP)                                \
+      break;                                                             \
+    header_offset += header->size;                                       \
+  }
+
+static bool load_log(struct mutator_state *state,
+                     struct harness_log *log,
+                     const uint8_t *buf, size_t buf_length) {
+  char hash[HASH_CHARS + 1];
+  kbdysch_compute_hash(hash, buf, buf_length);
+  hash[HASH_CHARS] = '\0';
+
+  int log_fd = openat(state->log_dir.dir_fd, hash, O_RDONLY);
+  if (log_fd < 0) {
+    ERR("Cannot open log for hash %s\n", hash);
+    memset(log->raw_log, 0, MUTATOR_MAX_LOG_BYTES);
+    return false;
+  }
+  ERR("Log: %s (size = %zu)\n", hash, buf_length);
+
+  int length = read(log_fd, log->raw_log, MUTATOR_MAX_LOG_BYTES);
+  if (length < 0)
+    FATAL("Cannot read log: %s", strerror(errno));
+  if (length < MUTATOR_MAX_LOG_BYTES) {
+    DEBUG("Read only %d bytes of log.", length);
+    memset(&log->raw_log[length], 0, MUTATOR_MAX_LOG_BYTES - length);
+  }
+  close(log_fd);
+
+  // Parse offsets
+  log->num_offsets = 0;
+  ITERATE_LOG_HEADERS(log->raw_log, {
+    if (header->type == MUTATOR_LOG_SET_OFFSET) {
+      DECL_WITH_TYPE(struct mutator_log_set_offset, set_offset, payload);
+      log->offsets[log->num_offsets++] = set_offset->offset;
+    }
+  });
+  log->offsets[log->num_offsets] = buf_length;
+
+  return true;
+}
+
+// Section 0 is the beginning of file before the first SET_OFFSET
+static void render_dropped_section(struct mutator_state *state) {
+  unsigned input_pos = 0;
+  unsigned output_pos = 0;
+
+  uint16_t resources[MUTATOR_MAX_RESOURCE_KINDS][MUTATOR_MAX_RESOURCE_IDS];
+  memset(&resources, -1, sizeof(resources));
+
+  int current_section = 0;
+  unsigned saved_input_pos = 0;
+  // For rolling back if non-existing resource is referenced
+  unsigned saved_output_pos = 0;
+
+  // Copy header
+  memcpy(state->output, state->input, state->current_log.offsets[0]);
+  saved_input_pos  = input_pos  = state->current_log.offsets[0];
+  saved_output_pos = output_pos = state->current_log.offsets[0];
+
+  ITERATE_LOG_HEADERS(state->current_log.raw_log, {
+    switch (header->type) {
+    case MUTATOR_LOG_STOP:
+      break;
+    case MUTATOR_LOG_SET_OFFSET: {
+      ++current_section;
+      saved_input_pos = input_pos;
+      saved_output_pos = output_pos;
+
+      // offset n <-> section (n+1)
+      unsigned input_pos_next = state->current_log.offsets[current_section];
+      if (input_pos_next < input_pos)
+        break;
+
+      // copy the next portion of input, so it can be patched as needed
+      if (!state->skipped_sections[current_section]) {
+        unsigned length = input_pos_next - input_pos;
+        memcpy(&state->output[output_pos],
+               &state->input[input_pos],
+               length);
+        output_pos += length;
+      }
+
+      input_pos = input_pos_next;
+      break;
+    }
+    case MUTATOR_LOG_NEW_RES: {
+      DECL_WITH_TYPE(struct mutator_log_new_resource, new_res, payload);
+      unsigned kind = new_res->kind;
+      unsigned id = new_res->id;
+      if (kind >= MUTATOR_MAX_RESOURCE_KINDS || id >= MUTATOR_MAX_RESOURCE_IDS)
+        break;
+      resources[new_res->kind][new_res->id] = current_section;
+      break;
+    }
+    case MUTATOR_LOG_REF_RES: {
+      DECL_WITH_TYPE(struct mutator_log_ref_resource, ref_res, payload);
+      unsigned kind = ref_res->kind;
+      unsigned id = ref_res->id;
+      if (kind >= MUTATOR_MAX_RESOURCE_KINDS || id >= MUTATOR_MAX_RESOURCE_IDS)
+        break;
+      if (state->skipped_sections[resources[kind][id]]) {
+        state->skipped_sections[current_section] = true;
+        output_pos = saved_output_pos;
+        break;
+      }
+
+      if (state->skipped_sections[current_section])
+        break;
+
+      unsigned output_offset = ref_res->offset - saved_input_pos + saved_output_pos;
+      unsigned size = ref_res->id_bytes;
+      if (output_offset + size > output_pos || size > 8) {
+        ERR("Invalid resource reference: output_offset = %u, size = %u\n",
+            output_offset, size);
+        break;
+      }
+
+      uint64_t new_id = 0;
+      memcpy(&new_id, &state->output[output_offset], size);
+      for (unsigned i = 0; i < id; ++i)
+        if (state->skipped_sections[resources[kind][i]])
+          new_id -= 1;
+      memcpy(&state->output[output_offset], &new_id, size);
+      break;
+    }
+    default:
+      FATAL("Unknown type of log record: %u\n", (unsigned)header->type);
+    }
+  });
+  state->output_length = output_pos;
+}
+
+static void render_splice(struct mutator_state *state,
+                          int num_prefix_sections,
+                          uint8_t *add_buf, size_t add_buf_size) {
+  state->output_length = state->current_log.offsets[num_prefix_sections];
+
+  memcpy(state->output, state->input, state->output_length);
+
+  if (!add_buf_size)
+    return;
+  if (!load_log(state, &state->additional_log, add_buf, add_buf_size))
+    return;
+  if (!state->additional_log.num_offsets)
+    return;
+
+  unsigned additional_index = random() & 0xFFFF;
+  additional_index %= state->additional_log.num_offsets;
+  unsigned suffix_start = state->additional_log.offsets[additional_index];
+  if (suffix_start >= add_buf_size)
+    return;
+
+  unsigned suffix_length = add_buf_size - suffix_start;
+  if (state->output_length + suffix_length > MUTATOR_MAX_TEST_CASE_LENGTH)
+    suffix_length = MUTATOR_MAX_TEST_CASE_LENGTH - state->output_length;
+
+  memcpy(&state->output[state->output_length], &add_buf[suffix_start], suffix_length);
+  state->output_length += suffix_length;
+}
+
+static size_t read_file(const char *file_name, uint8_t *buffer, size_t max_size) {
+  int fd = open(file_name, O_RDONLY);
+  if (fd < 0)
+    FATAL("Cannot file %s\n", file_name);
+
+  int length = read(fd, buffer, max_size);
+  if (length <= 0)
+    FATAL("read() returned %d\n", length);
+  close(fd);
+
+  return length;
+}
+
+static bool save_log_from_shm(struct mutator_state *state,
+                              uint8_t *test_case, size_t length,
+                              const char *description) {
+  char hash[HASH_CHARS + 1];
+  kbdysch_compute_hash(hash, test_case, length);
+  hash[HASH_CHARS] = '\0';
+
+  if (memcmp(state->log_shm.shm_segment, hash, HASH_CHARS)) {
+    ERR("Hash mismatch: %s (%s)\n", hash, description);
+    return false;
+  }
+
+  int log_fd = openat(state->log_dir.dir_fd, hash, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (log_fd < 0)
+    FATAL("Cannot write log data: %s.\n", strerror(errno));
+  write(log_fd, &state->log_shm.shm_segment[HASH_CHARS], MUTATOR_MAX_LOG_BYTES);
+  close(log_fd);
+
+  return true;
+}
+
 void *afl_custom_init(/*afl_state_t*/ void *afl_, unsigned int seed_) {
   DEBUG_TRACE_FUNC;
   (void) afl_;
   (void) seed_;
 
+  init_error_logging();
+
   struct mutator_state *state = calloc(1, sizeof(*state));
-  init_shm(state);
+  init_shm(&state->variables_shm, MUTATOR_SHM_VARS_ENV_NAME, MUTATOR_SHM_VARS_BYTES);
+  init_shm(&state->log_shm,       MUTATOR_SHM_LOG_ENV_NAME,  MUTATOR_SHM_LOG_BYTES);
+  init_temp_dir(&state->log_dir, "/tmp/afl-mutator-XXXXXX");
+
+  const char *num_splices_str = getenv(NUM_SPLICES_ENV_NAME);
+  if (num_splices_str)
+    state->num_splices = atoi(num_splices_str);
+  else
+    state->num_splices = DEFAULT_NUM_SPLICES;
 
   return state;
 }
 
-int afl_custom_init_trim(DATA_ARG, unsigned char *buf, size_t buf_size) {
+uint32_t afl_custom_fuzz_count(void *data, const uint8_t *buf, size_t buf_size) {
+  DECL_WITH_TYPE(struct mutator_state, state, data);
   DEBUG_TRACE_FUNC;
-  DECLARE_STATE_VAR;
 
-  if (buf_size > MUTATOR_MAX_TEST_CASE_LENGTH) {
-    buf_size = MUTATOR_MAX_TEST_CASE_LENGTH;
-    fprintf(stderr, __FILE__ ": warning: test case size is larger than %d bytes.",
-            MUTATOR_MAX_TEST_CASE_LENGTH);
+  // Input is loaded by afl_custom_queue_get()
+  load_log(state, &state->current_log, state->input, state->input_length);
+  state->current_mutation = 1; // after the first SET_OFFSET
+  state->max_mutation = 1 + state->current_log.num_offsets;
+
+  // number of mutations
+  return (1 + state->num_splices) * (state->max_mutation - state->current_mutation);
+}
+
+size_t afl_custom_fuzz(void *data, uint8_t *buf, size_t buf_size, uint8_t **out_buf,
+                       uint8_t *add_buf, size_t add_buf_size, size_t max_size) {
+  DECL_WITH_TYPE(struct mutator_state, state, data);
+  DEBUG_TRACE_FUNC;
+
+  bool do_splice = 0 != state->current_mutation % (1 + state->num_splices);
+  unsigned index = state->current_mutation / (1 + state->num_splices);
+  ++state->current_mutation;
+
+  *out_buf = state->output;
+
+  if (do_splice) {
+    render_splice(state, index, add_buf, add_buf_size);
+  } else {
+    memset(state->skipped_sections, 0, sizeof(bool) * MUTATOR_MAX_OFFSETS);
+    state->skipped_sections[index] = true;
+    render_dropped_section(state);
   }
+  return state->output_length;
+}
 
-  memcpy(state->input, buf, buf_size);
-  memcpy(state->output, buf, buf_size);
-  state->original_length = buf_size;
-  state->accepted_length = buf_size;
+uint8_t afl_custom_queue_get(void *data, const char *filename) {
+  DECL_WITH_TYPE(struct mutator_state, state, data);
+  DEBUG_TRACE_FUNC;
 
-  state->num_offsets = BUFFER_INFO_REQUEST_PENDING;
-  state->current_index = 0;
+  parse_variables_area(state);
+
+  state->input_length = read_file(filename, state->input,
+                                  MUTATOR_MAX_TEST_CASE_LENGTH);
 
   return 1;
 }
 
-size_t afl_custom_trim(DATA_ARG, unsigned char **out_buf) {
+uint8_t afl_custom_queue_new_entry(void *data, const char *filename_new_queue,
+                                   const char *filename_orig_queue) {
+  DECL_WITH_TYPE(struct mutator_state, state, data);
   DEBUG_TRACE_FUNC;
-  DECLARE_STATE_VAR;
-  *out_buf = state->output;
 
-  if (!state->fixed_section_parsed) {
-    if (!parse_fixed_section(state)) {
-      fprintf(stderr, "Cannot parse fixed section");
-      abort();
-    }
-  }
+  // Save log data for later use
 
-  DEBUG("cur_index = %u, num_offsets = %u, %u/%u\n",
-        state->current_index, state->num_offsets,
-        state->accepted_length, state->original_length);
+  static uint8_t test_case[MUTATOR_MAX_TEST_CASE_LENGTH];
+  int length = read_file(filename_new_queue, test_case,
+                         MUTATOR_MAX_TEST_CASE_LENGTH);
 
-  if (state->num_offsets == BUFFER_INFO_REQUEST_PENDING) {
-    state->num_offsets = BUFFER_INFO_REQUESTED;
-    *(mutator_shm_word *)state->shm_bytecode_start = MUTATOR_OPCODE_STOP;
-    return state->accepted_length;
-  }
-  // SHM buffer contents are parsed by post-trim
-  assert(state->num_offsets != BUFFER_INFO_REQUESTED);
+  bool log_saved = save_log_from_shm(state, test_case, length, filename_new_queue);
+  if (!log_saved && !strstr(filename_new_queue, ",orig:"))
+    FATAL("Unexpected hash: %s\n", filename_new_queue);
 
-  assert(state->current_index < state->num_offsets);
-
-  unsigned trimmed_bytes = state->original_length - state->accepted_length;
-  uint32_t accepted_start = state->offsets[state->current_index]     - trimmed_bytes;
-  uint32_t accepted_end   = state->offsets[state->current_index + 1] - trimmed_bytes;
-  DEBUG("cutting %u-%u (%u bytes)\n",
-        accepted_start, accepted_end, accepted_end - accepted_start);
-
-  memcpy(state->output, state->input, accepted_start);
-  memcpy(&state->output[accepted_start],
-         &state->input[accepted_end],
-         state->accepted_length - accepted_end);
-
-  state->proposed_length = state->accepted_length - (accepted_end - accepted_start);
-
-  return state->proposed_length;
+  return 0;
 }
 
-int afl_custom_post_trim(DATA_ARG, unsigned char success) {
+void afl_custom_deinit(void *data) {
+  DECL_WITH_TYPE(struct mutator_state, state, data);
   DEBUG_TRACE_FUNC;
-  DECLARE_STATE_VAR;
-  DEBUG("cur_index = %u, num_offsets = %u, success = %d\n",
-        state->current_index, state->num_offsets, (int) success);
 
-  assert(state->num_offsets != BUFFER_INFO_REQUEST_PENDING);
-  if (state->num_offsets == BUFFER_INFO_REQUESTED) {
-    parse_offsets(state);
-    return 0;
-  }
-
-  if (success) {
-    memcpy(state->input, state->output, state->proposed_length);
-    state->accepted_length = state->proposed_length;
-  }
-
-  state->current_index += 1;
-  return !(state->current_index < state->num_offsets);
-}
-
-void afl_custom_deinit(DATA_ARG) {
-  DEBUG_TRACE_FUNC;
-  DECLARE_STATE_VAR;
-
+  parse_variables_area(state);
   print_variables(state);
 
-  for (int i = 0; i < state->num_fixed_records; ++i) {
-    free(state->fixed_records[i].name);
+  for (int i = 0; i < state->num_vars; ++i) {
+    free(state->variables[i].name);
   }
-  drop_shm(state);
+  drop_temp_dir(&state->log_dir);
+  drop_shm(&state->log_shm);
+  drop_shm(&state->variables_shm);
   free(data);
-}
 
-static void parse_offsets(struct mutator_state *state) {
-  DEBUG_TRACE_FUNC;
-  state->num_offsets = 0;
-  int current_word = 0;
-  DECL_WITH_TYPE(mutator_shm_word, current_ptr, state->shm_bytecode_start);
-  for (;;) {
-    if (state->num_offsets >= MUTATOR_MAX_TRIM_OFFSETS)
-      break;
-    if (!check_in_bounds(state, current_ptr, 2 * sizeof(mutator_shm_word)))
-      break;
-
-    unsigned opcode = *(current_ptr++);
-    switch (opcode) {
-    case MUTATOR_OPCODE_STOP: {
-      DEBUG("parsed %u SHM words\n", current_word);
-      state->offsets[state->num_offsets] = state->original_length;
-      return;
-    }
-    case MUTATOR_OPCODE_SET_OFFSET: {
-      unsigned offset = *(current_ptr++);
-      DEBUG("parsed trim offset #%u: %u\n", state->num_offsets, offset);
-      if (offset < state->original_length)
-        state->offsets[state->num_offsets++] = offset;
-      break;
-    }
-    default:
-      FATAL("Unknown opcode %u at buffer offset %d\n", opcode, current_word);
-    }
-  }
-  state->offsets[state->num_offsets] = state->original_length;
+  if (error_log)
+    fclose(error_log);
 }

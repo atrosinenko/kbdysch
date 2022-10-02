@@ -18,6 +18,7 @@ add_subdirectory(dummy-lkl)
 add_subdirectory(common)
 add_subdirectory(mutators)
 
+RegisterHarness(testfuzz)
 RegisterInvoker(fs)
 RegisterHarnessWithInvoker(fsfuzz fs)
 TestHarness(fsfuzz ARGS mem=32M ext4 FILES ext4=16M)

@@ -70,6 +70,8 @@ size_t res_get_cur_offset(const struct fuzzer_state *state);
  */
 ssize_t res_get_input_length(const struct fuzzer_state *state);
 
+const uint8_t *res_get_data_ptr(struct fuzzer_state *state);
+
 /**
  * @brief Explicitly skips enough number of input bytes, so the next position
  * will be aligned as requested

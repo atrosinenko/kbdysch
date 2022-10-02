@@ -1,0 +1,11 @@
+[ENV:KBDYSCH_MUTATOR_NUM_SPLICES=0]
+[BEGIN:DUMPING OUTPUTS]
+[END:CALL DEINIT]
+[MUTATE]
+%Section 1 %N00 %N01
+%Section 2 %R01
+%Section 3
+%Section 4 %N02
+%Section 5 %N03 %R02
+%Section 6 %R03
+%Section 7 %R00 %R03

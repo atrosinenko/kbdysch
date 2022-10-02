@@ -60,6 +60,7 @@ void res_load_whole_stdin(struct fuzzer_state *state)
     abort();
   }
   TRACE(state, "Read %zu bytes of input (max %u).", state->constant_state.length, MAX_INPUT_LEN);
+  mutator_init_input(state);
 }
 
 void res_rewind_input(struct fuzzer_state *state, size_t offset) {
@@ -96,6 +97,10 @@ size_t res_get_cur_offset(const struct fuzzer_state *state)
 ssize_t res_get_input_length(const struct fuzzer_state *state)
 {
   return state->constant_state.length;
+}
+
+const uint8_t *res_get_data_ptr(struct fuzzer_state *state) {
+  return state->constant_state.input_buffer;
 }
 
 void res_align_next_to(struct fuzzer_state *state, size_t alignment)

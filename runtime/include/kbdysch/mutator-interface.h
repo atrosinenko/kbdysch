@@ -4,7 +4,7 @@
 #include "kbdysch/common-defs.h"
 #include "kbdysch/mutator-defs.h"
 
-typedef struct mutator_fixed_record_header debug_variable;
+typedef struct mutator_var_header debug_variable;
 
 void mutator_init(void);
 
@@ -12,11 +12,14 @@ debug_variable *mutator_allocate_counters(const char *name, size_t max_counters)
 
 debug_variable *mutator_allocate_strings(const char *name, size_t max_strlen, size_t max_strings);
 
-void close_fixed_section(void);
+void mutator_init_input(struct fuzzer_state *state);
 
 void *mutator_variable_get_ptr(debug_variable *header, int index);
 
 void mutator_write_trim_offset(unsigned offset);
+
+void mutator_open_resource(unsigned kind, unsigned id);
+void mutator_ref_resource(unsigned kind, unsigned id, unsigned id_bytes, unsigned offset);
 
 #define DEBUG_COUNTERS(var_name, description, max_counters) \
   debug_variable *var_name; \
@@ -41,7 +44,7 @@ void mutator_write_trim_offset(unsigned offset);
   }
 
 #define RESIZE_DEBUG_VARIABLE(var_name, size) \
-  if (var_name) var_name->num_elements_mut = (size)
+  if (var_name) var_name->num_elements_real = (size)
 
 #define INCREMENT_DEBUG_COUNTER(var_name, index, increment) \
   if (var_name##_counters) var_name##_counters[(index)] += (increment)

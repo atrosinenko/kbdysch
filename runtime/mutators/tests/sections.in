@@ -1,0 +1,11 @@
+[ENV:KBDYSCH_MUTATOR_NUM_SPLICES=0]
+[BEGIN:DUMPING OUTPUTS]
+[END:CALL DEINIT]
+[MUTATE]
+Header
+%Section 1
+some stuff
+%Section 2
+some other stuff
+%Section 3
+111

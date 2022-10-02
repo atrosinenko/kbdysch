@@ -5,61 +5,99 @@
 
 // Common definitions for harness executables and mutator library
 
-#define MUTATOR_ENV_NAME "__KBDYSCH_MUTATOR_SHM_ID"
+#define MUTATOR_SHM_VARS_ENV_NAME "__KBDYSCH_MUTATOR_SHM_VARS_ID"
+#define MUTATOR_SHM_LOG_ENV_NAME "__KBDYSCH_MUTATOR_SHM_LOG_ID"
 
-typedef uint32_t mutator_shm_word;
-
-// Mutator and harness communicate by means of dedicated SHM area.
+// Mutator and harness communicate by means of dedicated SHM areas.
 // Assumptions:
 // * Mutator should never crash, even on malformed SHM contents.
 //   After all, if fuzzer finds a crash, it is quite expectably that
 //   harness-writable memory can be corrupted.
 // * Mutator library and harness executable should match exactly,
 //   no forward/backward compatibility is assumed for now.
-// * There are two different sections of SHM area: a fixed-structure section
-//   and a bytecode-style section.
 // * Each successful invocation of the same harness should produce the
-//   same layout of fixed-structure section. It is perfectly OK for different
+//   same layout of variables SHM area. It is perfectly OK for different
 //   harnesses or differently-configured harness to produce different layouts
-//   * this part can be parsed once during fuzzing session warm-up and then
+//   * this area can be parsed once during fuzzing session warm-up and then
 //     pointers can be remembered
 //
-// Layout of SHM area:
-// * Fixed-structure section: N consecutive records.
-//   N and the offsets of records do not change across fuzzing session
-// * MUTATOR_END_OF_FIXED_SECTION_MARK value
-// * Variable-structure section: a possibly empty sequence of "instructions".
-// * MUTATOR_END_OF_BYTECODE_SECTION_MARK value
+// Variables area layout:
+//
+// N records are concatenated without any padding in between.
+// N does not change across fuzzing session.
+// Each record has the following layout:
+// - struct mutator_var_header
+// - (name_bytes) bytes with variable name (not necessary 0-terminated)
+// - (bytes_per_element * max_num_elements) bytes of payload
+// The last record should have type == MUTATOR_VAR_STOP.
+//
+// Log area layout:
+//
+// HASH_CHARS bytes of input hash is followed by log records.
+// Each harness run can produce an arbitrary number of log records
+// concatenated without any padding in between.
+// Each record has the following layout:
+// - struct mutator_log_record_header
+// - payload depending on the type field
+// The last record should have type == MUTATOR_LOG_STOP.
 
 enum mutator_fixed_record_type {
-  MUTATOR_FIXED_RECORD_COUNTERS,
-  MUTATOR_FIXED_RECORD_STRINGS,
-  MUTATOR_FIXED_RECORD_STOP,
+  MUTATOR_VAR_STOP = 0,
+  MUTATOR_VAR_COUNTERS,
+  MUTATOR_VAR_STRINGS,
 };
 
 enum mutator_opcode {
-  MUTATOR_OPCODE_SET_OFFSET,
-  MUTATOR_OPCODE_STOP,
+  MUTATOR_LOG_STOP = 0,
+  MUTATOR_LOG_SET_OFFSET,
+  MUTATOR_LOG_NEW_RES,
+  MUTATOR_LOG_REF_RES,
 };
 
-#define MUTATOR_END_OF_FIXED_SECTION_MARK    0xABCDDCBAu
-#define MUTATOR_END_OF_BYTECODE_SECTION_MARK 0xDCBAABCDu
+#define UNALIGNED __attribute__((aligned(1)))
+typedef uint16_t mutator_num_elements_t UNALIGNED;
+typedef uint64_t mutator_u64_var_t UNALIGNED;
 
 #pragma pack(push,1)
-struct mutator_fixed_record_header {
-  mutator_shm_word type;
-  mutator_shm_word name_words;
-  mutator_shm_word element_words;
-  mutator_shm_word max_num_elements;
+struct mutator_var_header {
+  uint16_t type;
+  uint16_t name_bytes;
+  uint16_t bytes_per_element;
+  mutator_num_elements_t max_num_elements;
 
-  mutator_shm_word num_elements_mut;
+  mutator_num_elements_t num_elements_real;
+};
+
+struct mutator_log_record_header {
+  uint16_t type;
+  uint16_t size; // including this header
+};
+struct mutator_log_set_offset {
+  uint32_t offset;
+};
+struct mutator_log_new_resource {
+  uint8_t kind;
+  uint8_t id;
+#define MUTATOR_MAX_RESOURCE_IDS 256
+};
+struct mutator_log_ref_resource {
+  uint8_t kind;
+  uint8_t id_bytes;
+  uint8_t id;
+  uint32_t offset;
 };
 #pragma pack(pop)
 
-#define MUTATOR_MAX_FIXED_RECORDS 100
 #define MUTATOR_MAX_TEST_CASE_LENGTH (1 << 20)
-#define MUTATOR_MAX_TRIM_OFFSETS 128
-#define MUTATOR_SHM_SIZE_WORDS 1024
-#define MUTATOR_SHM_SIZE (MUTATOR_SHM_SIZE_WORDS * sizeof(mutator_shm_word))
+
+#define MUTATOR_MAX_RESOURCE_KINDS 3
+
+#define MUTATOR_MAX_VARIABLES 100
+#define MUTATOR_SHM_VARS_BYTES 4000
+
+#define MUTATOR_MAX_LOG_BYTES 4000
+#define MUTATOR_SHM_LOG_BYTES (HASH_CHARS + MUTATOR_MAX_LOG_BYTES)
+#define MUTATOR_MAX_LOG_ENTRIES(type) (MUTATOR_MAX_LOG_BYTES / (sizeof(struct mutator_log_record_header) + sizeof(struct type)))
+#define MUTATOR_MAX_OFFSETS MUTATOR_MAX_LOG_ENTRIES(mutator_log_set_offset)
 
 #endif  // KBDYSCH_MUTATOR_DEFS_H
