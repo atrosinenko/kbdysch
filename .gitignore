@@ -29,5 +29,9 @@ CMakeLists.txt.user.*
 /build.*/
 /lkl-include
 
+# Clangd-related stuff
+/.cache
+/compile_commands.json
+
 # Misc
 .gdb_history
