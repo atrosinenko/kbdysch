@@ -25,10 +25,6 @@
 #define ENV_NAME_INJECTOR_TEST_CASE "INJECTOR_TEST_CASE"
 
 #define CMD_MUTATE "[MUTATE]"
-#define CMD_TRIM_START "[TRIM"
-#define TRIM_ACCEPT_CH '+'
-#define TRIM_REJECT_CH '-'
-#define CMD_END_CH ']'
 
 #define OUTPUT_DUMP_DIR "injector-dumped"
 #define MAX_PRINT_CHARS 1024
@@ -142,35 +138,6 @@ static void dump_all_mutations(void) {
   }
 }
 
-static void perform_trimming(uint8_t *cmd) {
-  int cur_index = 0;
-  int max_index = afl_custom_init_trim(mutator_state, test_case_data, test_case_size);
-  TRACE("Trim init: %d\n", max_index);
-  for ( ; cmd < &test_case_data[test_case_size]; ++cmd) {
-    TRACE("Trim current: %d\n", cur_index);
-    if (cur_index >= max_index)
-      break;
-
-    uint8_t *output_buffer;
-    size_t out_size = afl_custom_trim(mutator_state, &output_buffer);
-    dump_output(output_buffer, out_size);
-
-    switch ((char) *cmd) {
-    case TRIM_ACCEPT_CH:
-      cur_index = afl_custom_post_trim(mutator_state, 1);
-      break;
-    case TRIM_REJECT_CH:
-      cur_index = afl_custom_post_trim(mutator_state, 0);
-      break;
-    case CMD_END_CH:
-      return;
-    default:
-      TRACE("Unknown trim command: '%c'\n", (char) *cmd);
-      break;
-    }
-  }
-}
-
 __attribute__((destructor))
 static void destructor(void) {
   TRACE("FINI\n");
@@ -180,16 +147,6 @@ static void destructor(void) {
 
   if (memmem(test_case_data, test_case_size, CMD_MUTATE, strlen(CMD_MUTATE)))
     dump_all_mutations();
-
-  uint8_t *cur = test_case_data;
-  uint8_t *end = cur + test_case_size;
-  for (;;) {
-    cur = memmem(cur, end - cur, CMD_TRIM_START, strlen(CMD_TRIM_START));
-    if (!cur)
-      break;
-    cur += strlen(CMD_TRIM_START);
-    perform_trimming(cur);
-  }
 
   TRACE("CALL DEINIT\n");
   afl_custom_deinit(mutator_state);
