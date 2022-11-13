@@ -1,6 +1,7 @@
 #include "kbdysch/kbdysch.h"
 
 #include "kbdysch/internal-defs.h"
+#include "kbdysch/options.h"
 
 #include <assert.h>
 #include <sys/mman.h>

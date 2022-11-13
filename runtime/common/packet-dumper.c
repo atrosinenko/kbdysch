@@ -1,6 +1,7 @@
 #include "kbdysch/packet-dumper.h"
 #include "kbdysch/logging.h"
 
+#include <arpa/inet.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
