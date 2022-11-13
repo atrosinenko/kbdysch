@@ -54,6 +54,14 @@ enum mutator_opcode {
   MUTATOR_LOG_REF_RES,
 };
 
+enum mutator_resource_kind {
+  RESOURCE_KIND_FD,
+  RESOURCE_KIND_FILE_NAME,
+  RESOURCE_KIND_HARNESS_SPECIFIC_1,
+
+  MUTATOR_MAX_RESOURCE_KINDS
+};
+
 #define UNALIGNED __attribute__((aligned(1)))
 typedef uint16_t mutator_num_elements_t UNALIGNED;
 typedef uint64_t mutator_u64_var_t UNALIGNED;
@@ -89,8 +97,6 @@ struct mutator_log_ref_resource {
 #pragma pack(pop)
 
 #define MUTATOR_MAX_TEST_CASE_LENGTH (1 << 20)
-
-#define MUTATOR_MAX_RESOURCE_KINDS 3
 
 #define MUTATOR_MAX_VARIABLES 100
 #define MUTATOR_SHM_VARS_BYTES 4000

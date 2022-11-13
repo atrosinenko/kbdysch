@@ -36,11 +36,6 @@ DEBUG_COUNTER(valid_fds, "Valid FDs")
 DEBUG_COUNTER(invalid_fds, "Invalid FDs")
 DEBUG_COUNTER(unique_fds, "Unique FDs")
 
-enum {
-  RESOURCE_KIND_FD,
-  RESOURCE_KIND_FILE_NAME,
-};
-
 jmp_buf *res_get_stopper_env(struct fuzzer_state *state)
 {
   return &state->stopper;
