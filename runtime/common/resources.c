@@ -265,7 +265,7 @@ static int res_create_file_name(struct fuzzer_state *state)
 
   TRACE(NULL, "chain_to = %d / %d / %s", chain_to, state->current_state.file_name_count, state->mutable_state.file_names[chain_to]);
   if (chain_to)
-    mutator_ref_resource(RESOURCE_KIND_FILE_NAME, chain_to, 2, res_get_cur_offset(state) - 2);
+    res_mark_consumed_reference(state, RESOURCE_KIND_FILE_NAME, chain_to, 2);
 
   if (no_new_files) {
     DEBUG_INC(file_names_reused);
@@ -350,7 +350,7 @@ int res_get_fd(struct fuzzer_state *state, const char *name)
     result = -1;
   LOG_ASSIGN("<FD: %d>", result);
   if (result != -1)
-    mutator_ref_resource(RESOURCE_KIND_FD, ind, 2, res_get_cur_offset(state) - 2);
+    res_mark_consumed_reference(state, RESOURCE_KIND_FD, ind, 2);
   return result;
 }
 

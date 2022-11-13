@@ -1,3 +1,4 @@
+#include "kbdysch/input.h"
 #include "kbdysch/kbdysch.h"
 #include "kbdysch/invoker-utils.h"
 #include "kbdysch/mutator-interface.h"
@@ -213,7 +214,7 @@ int main(int argc, const char *argv[]) {
     pth_yield(NULL);
 
     for (int block_index = 0; block_index < MAX_OPS; ++block_index) {
-      mutator_write_trim_offset(res_get_cur_offset(state));
+      res_mark_section_start(state);
 
       if (block_index > fuse_request_counter + 2)
         break;

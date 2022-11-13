@@ -44,3 +44,13 @@ ssize_t res_get_input_length(const struct fuzzer_state *state) {
 const uint8_t *res_get_data_ptr(struct fuzzer_state *state) {
   return state->constant_state.input_buffer;
 }
+
+void res_mark_section_start(struct fuzzer_state *state) {
+  mutator_write_trim_offset(res_get_cur_offset(state));
+}
+
+void res_mark_consumed_reference(struct fuzzer_state *state,
+                                 int kind, int id, unsigned id_bytes) {
+  unsigned offset = res_get_cur_offset(state) - id_bytes;
+  mutator_ref_resource(kind, id, id_bytes, offset);
+}

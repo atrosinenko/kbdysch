@@ -36,4 +36,17 @@ ssize_t res_get_input_length(const struct fuzzer_state *state);
  */
 const uint8_t *res_get_data_ptr(struct fuzzer_state *state);
 
+/**
+ * Utilify function for mutator interface: call it just before
+ * reading the new input section.
+ */
+void res_mark_section_start(struct fuzzer_state *state);
+
+/**
+ * Utilify function for mutator interface: call it right after
+ * reading and processing resource reference.
+ */
+void res_mark_consumed_reference(struct fuzzer_state *state,
+                                 int kind, int id, unsigned id_bytes);
+
 #endif  // KBDYSCH_INPUT_H
