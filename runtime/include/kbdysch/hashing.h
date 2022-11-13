@@ -6,6 +6,16 @@
 
 #define HASH_CHARS 16
 
+typedef uint32_t fast_hash_t;
+
+static inline fast_hash_t kbdysch_compute_fast_hash(const uint8_t *data, size_t length) {
+  fast_hash_t result = 0;
+  for (unsigned i = 0; i < length; ++i) {
+    result = result * 17239u + data[i] * 17u;
+  }
+  return result;
+}
+
 // "out" is not zero terminated!
 void kbdysch_compute_hash(char *out, const uint8_t *data, size_t size);
 

@@ -1,6 +1,7 @@
 #ifndef KBDYSCH_INVOKER_UTILS_H
 #define KBDYSCH_INVOKER_UTILS_H
 
+#include "kbdysch/input.h"
 #include "kbdysch/kbdysch.h"
 #include "kbdysch/logging.h"
 
@@ -26,18 +27,6 @@ typedef enum {
 /// \defgroup state_management Fuzzer state management
 /// @{
 
-/**
- * @brief Loads fuzzer testcase from the standard input
- */
-void res_load_whole_stdin(struct fuzzer_state *state);
-
-/**
- * @brief Sets the previously loaded fuzzer input
- */
-void res_set_input_data(struct fuzzer_state *state, const uint8_t *data, size_t size);
-
-void res_rewind_input(struct fuzzer_state *state, size_t offset);
-
 jmp_buf *res_get_stopper_env(struct fuzzer_state *state);
 
 /**
@@ -59,18 +48,6 @@ void res_restore_state(struct fuzzer_state *state, int for_partiton);
  * @brief Returns the total configured partition count
  */
 int res_get_part_count(const struct fuzzer_state *state);
-
-/**
- * @brief Returns current offset in the fuzzer input data (for debug purposes)
- */
-size_t res_get_cur_offset(const struct fuzzer_state *state);
-
-/**
- * @brief Returns the total fuzzer input length (for debug purposes)
- */
-ssize_t res_get_input_length(const struct fuzzer_state *state);
-
-const uint8_t *res_get_data_ptr(struct fuzzer_state *state);
 
 /**
  * @brief Explicitly skips enough number of input bytes, so the next position

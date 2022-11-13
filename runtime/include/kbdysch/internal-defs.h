@@ -3,6 +3,7 @@
 
 #include "kbdysch/kbdysch.h"
 #include "kbdysch/block.h"
+#include "kbdysch/hashing.h"
 
 #include <setjmp.h>
 
@@ -56,7 +57,7 @@ typedef struct {
   const char *file_basenames[MAX_FILE_NAME_COUNT]; ///< Base names corresponding to `file_names` (should never be freed explicitly)
 
   const char *strings[MAX_STRING_COUNT]; ///< Known strings
-  uint32_t string_hash[MAX_STRING_COUNT]; ///< Some non-cryptographic hashes of these strings
+  fast_hash_t string_hash[MAX_STRING_COUNT]; ///< Some non-cryptographic hashes of these strings
   uint32_t string_length[MAX_STRING_COUNT]; ///< Lengths of these strings
   int string_count; ///< Count of known strings
   int current_part;   ///< Current partition index to issue syscalls against (0-indexed)
