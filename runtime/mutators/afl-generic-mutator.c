@@ -356,8 +356,10 @@ static void render_dropped_section(struct mutator_state *state) {
       DECL_WITH_TYPE(struct mutator_log_new_resource, new_res, payload);
       unsigned kind = new_res->kind;
       unsigned id = new_res->id;
-      if (kind >= MUTATOR_MAX_RESOURCE_KINDS || id >= MUTATOR_MAX_RESOURCE_IDS)
+      if (kind >= MUTATOR_MAX_RESOURCE_KINDS || id >= MUTATOR_MAX_RESOURCE_IDS) {
+        ERR("Section %u, new resource: invalid kind=%u, id=%u\n", current_section, kind, id);
         break;
+      }
       resources[new_res->kind][new_res->id] = current_section;
       break;
     }
@@ -365,9 +367,17 @@ static void render_dropped_section(struct mutator_state *state) {
       DECL_WITH_TYPE(struct mutator_log_ref_resource, ref_res, payload);
       unsigned kind = ref_res->kind;
       unsigned id = ref_res->id;
-      if (kind >= MUTATOR_MAX_RESOURCE_KINDS || id >= MUTATOR_MAX_RESOURCE_IDS)
+      if (kind >= MUTATOR_MAX_RESOURCE_KINDS || id >= MUTATOR_MAX_RESOURCE_IDS) {
+        ERR("Section %u, referenced resource: invalid kind=%u, id=%u\n", current_section, kind, id);
         break;
-      if (state->skipped_sections[resources[kind][id]]) {
+      }
+      unsigned defining_section = resources[kind][id];
+      if (defining_section > current_section) {
+        ERR("Section %u, referenced resource (%u, %u) defined by section %u\n",
+            current_section, kind, id, defining_section);
+        break;
+      }
+      if (state->skipped_sections[defining_section]) {
         state->skipped_sections[current_section] = true;
         output_pos = saved_output_pos;
         break;

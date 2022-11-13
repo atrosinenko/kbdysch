@@ -27,6 +27,8 @@ void res_load_whole_stdin(struct fuzzer_state *state) {
   }
   TRACE(state, "Read %zu bytes of input (max %u).", state->constant_state.length, MAX_INPUT_LEN);
   mutator_init_input(state);
+  for (int id = 0; id < state->current_state.file_name_count; ++id)
+    mutator_open_resource(RESOURCE_KIND_FILE_NAME, id);
 }
 
 void res_rewind_input(struct fuzzer_state *state, size_t offset) {
