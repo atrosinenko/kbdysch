@@ -1,3 +1,7 @@
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+
 #include "kbdysch/mutator-defs.h"
 #include "kbdysch/hashing.h"
 #include "afl-interface-decls.h"
@@ -291,10 +295,9 @@ static bool load_log(struct mutator_state *state,
   int log_fd = openat(state->log_dir.dir_fd, hash, O_RDONLY);
   if (log_fd < 0) {
     ERR("Cannot open log for hash %s\n", hash);
-    memset(log->raw_log, 0, MUTATOR_MAX_LOG_BYTES);
+    memset(log, 0, sizeof(*log));
     return false;
   }
-  ERR("Log: %s (size = %zu)\n", hash, buf_length);
 
   int length = read(log_fd, log->raw_log, MUTATOR_MAX_LOG_BYTES);
   if (length < 0)
@@ -310,9 +313,15 @@ static bool load_log(struct mutator_state *state,
   ITERATE_LOG_HEADERS(log->raw_log, {
     if (header->type == MUTATOR_LOG_SET_OFFSET) {
       DECL_WITH_TYPE(struct mutator_log_set_offset, set_offset, payload);
+      if (set_offset->offset >= state->input_length)
+        break;
       log->offsets[log->num_offsets++] = set_offset->offset;
     }
   });
+  if (log->num_offsets && log->offsets[log->num_offsets - 1] >= buf_length) {
+    ERR("Out of bounds offset: %u at index %u.\n",
+        log->offsets[log->num_offsets - 1], log->num_offsets - 1);
+  }
   log->offsets[log->num_offsets] = buf_length;
 
   return true;
