@@ -31,6 +31,11 @@
 // - (bytes_per_element * max_num_elements) bytes of payload
 // The last record should have type == MUTATOR_VAR_STOP.
 //
+// Then, at MUTATOR_SHM_VARS_BYTES offset, another area is located that
+// is zeroed by the forkserver before each run. This temporary area has
+// the same layout as the first one, but only a few supported fields are
+// updated.
+//
 // Log area layout:
 //
 // HASH_CHARS bytes of input hash is followed by log records.
@@ -100,6 +105,8 @@ struct mutator_log_ref_resource {
 
 #define MUTATOR_MAX_VARIABLES 100
 #define MUTATOR_SHM_VARS_BYTES 4000
+#define MUTATOR_SHM_VAR_IN_CURRENT_AREA(ptr) \
+    ((void *)(((uint8_t *)(ptr)) + MUTATOR_SHM_VARS_BYTES))
 
 #define MUTATOR_MAX_LOG_BYTES 4000
 #define MUTATOR_SHM_LOG_BYTES (HASH_CHARS + MUTATOR_MAX_LOG_BYTES)

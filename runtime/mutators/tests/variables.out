@@ -1,6 +1,6 @@
-Variable #0:    0        - Number of %-prefixed tags processed
-Variable #1:    0        - File names reused
-Variable #2:    0        - File names created
-Variable #3:    0        - Valid FDs
-Variable #4:    0        - Invalid FDs
-Variable #5:    0        - Unique FDs
+Variable #0:    0   0        - Number of %-prefixed tags processed
+Variable #1:    0   0        - File names reused
+Variable #2:    0   0        - File names created
+Variable #3:    0   0        - Valid FDs
+Variable #4:    0   0        - Invalid FDs
+Variable #5:    0   0        - Unique FDs

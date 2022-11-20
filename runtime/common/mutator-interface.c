@@ -17,21 +17,22 @@
 struct mutator_shm {
   uint8_t *shm_segment;
   unsigned offset;
-  size_t num_bytes;
+  size_t allocatable_bytes;
 };
 
 static bool initialized;
 static struct mutator_shm vars_shm;
 static struct mutator_shm log_shm;
 
-static void get_shm_segment(struct mutator_shm *shm, const char *env_name, size_t size) {
+static void get_shm_segment(struct mutator_shm *shm, const char *env_name,
+                            size_t allocatable_bytes, size_t total_bytes) {
   shm->offset = 0;
-  shm->num_bytes = size;
+  shm->allocatable_bytes = allocatable_bytes;
 
   const char *shm_id_str = getenv(env_name);
   if (!shm_id_str) {
     WARN(NULL, "%s variable not found, allocating dummy segment", env_name);
-    shm->shm_segment = malloc(size);
+    shm->shm_segment = malloc(total_bytes);
     return;
   }
 
@@ -41,7 +42,7 @@ static void get_shm_segment(struct mutator_shm *shm, const char *env_name, size_
 }
 
 static uint8_t *alloc_in_shm(struct mutator_shm *shm, size_t size, size_t extra_bytes) {
-  if (shm->offset + size + extra_bytes > shm->num_bytes)
+  if (shm->offset + size + extra_bytes > shm->allocatable_bytes)
     return NULL;
 
   uint8_t *result = &shm->shm_segment[shm->offset];
@@ -56,8 +57,10 @@ void mutator_init(void) {
     return;
   initialized = true;
 
-  get_shm_segment(&vars_shm, MUTATOR_SHM_VARS_ENV_NAME, MUTATOR_SHM_VARS_BYTES);
-  get_shm_segment(&log_shm, MUTATOR_SHM_LOG_ENV_NAME, MUTATOR_SHM_LOG_BYTES);
+  get_shm_segment(&vars_shm, MUTATOR_SHM_VARS_ENV_NAME,
+                  MUTATOR_SHM_VARS_BYTES, 2 * MUTATOR_SHM_VARS_BYTES);
+  get_shm_segment(&log_shm, MUTATOR_SHM_LOG_ENV_NAME,
+                  MUTATOR_SHM_LOG_BYTES, MUTATOR_SHM_LOG_BYTES);
   TRACE(NULL, "Mutator interface initialized");
 }
 
@@ -68,6 +71,7 @@ void mutator_init_input(struct fuzzer_state *state) {
 
   void *ptr = alloc_in_shm(&log_shm, HASH_CHARS, sizeof(struct mutator_log_record_header));
   memcpy(ptr, hash, HASH_CHARS);
+  memset(&vars_shm.shm_segment[MUTATOR_SHM_VARS_BYTES], 0, MUTATOR_SHM_VARS_BYTES);
   TRACE(state, "Mutator input initialized, hash: %s", hash);
 }
 

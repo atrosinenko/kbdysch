@@ -43,13 +43,16 @@ struct mutator_variable_desc {
   mutator_num_elements_t *num_elements;
   unsigned bytes_per_element, max_elements;
   char *name;
+  // Pointer to the original data in SHM
   void *data;
+  // Pointer to the storage for data accumulated only for queue entries
+  void *important_data;
 };
 
 struct mutator_shm {
   int shm_id;
   uint8_t *shm_segment;
-  size_t num_bytes;
+  size_t allocatable_bytes;
 };
 
 struct mutator_temp_dir {
@@ -110,12 +113,13 @@ static void init_error_logging(void) {
   setvbuf(error_log, NULL, _IONBF, 0);
 }
 
-static void init_shm(struct mutator_shm *shm, const char *env_var_name, size_t size) {
+static void init_shm(struct mutator_shm *shm, const char *env_var_name,
+                     size_t allocatable_bytes, size_t total_bytes) {
   char buf[32];
   // Allocate SHM segment
-  shm->shm_id = shmget(IPC_PRIVATE, size, 0600);
+  shm->shm_id = shmget(IPC_PRIVATE, total_bytes, 0600);
   shm->shm_segment = shmat(shm->shm_id, NULL, 0);
-  shm->num_bytes = size;
+  shm->allocatable_bytes = allocatable_bytes;
   // Make SHM discoverable by harness
   sprintf(buf, "%d", shm->shm_id);
   setenv(env_var_name, buf, 1);
@@ -178,12 +182,12 @@ static void parse_variables_area(struct mutator_state *state) {
 
     // Check input description is in bounds
     size_t total_bytes = sizeof(struct mutator_var_header);
-    if (!in_bounds(shm->shm_segment, shm->num_bytes, current_ptr, total_bytes))
+    if (!in_bounds(shm->shm_segment, shm->allocatable_bytes, current_ptr, total_bytes))
       return;
     DECL_WITH_TYPE(struct mutator_var_header, header, current_ptr);
     total_bytes += header->name_bytes;
     total_bytes += header->bytes_per_element * header->max_num_elements;
-    if (!in_bounds(shm->shm_segment, shm->num_bytes, current_ptr, total_bytes))
+    if (!in_bounds(shm->shm_segment, shm->allocatable_bytes, current_ptr, total_bytes))
       return;
 
     // Parse input description
@@ -209,6 +213,7 @@ static void parse_variables_area(struct mutator_state *state) {
               desc->name, (int)desc->bytes_per_element);
         return;
       }
+      desc->important_data = calloc(desc->max_elements, desc->bytes_per_element);
       break;
     case MUTATOR_VAR_STRINGS:
       break;
@@ -222,11 +227,30 @@ static void parse_variables_area(struct mutator_state *state) {
   }
 }
 
+static void accumulate_important_data(struct mutator_state *state) {
+  parse_variables_area(state);
+  for (int current_var = 0; current_var < state->num_vars; ++current_var) {
+    struct mutator_variable_desc *v = &state->variables[current_var];
+    switch (v->type) {
+    case MUTATOR_VAR_COUNTERS: {
+      mutator_u64_var_t *accumulated = (mutator_u64_var_t *)v->important_data;
+      mutator_u64_var_t *current     = (mutator_u64_var_t *)MUTATOR_SHM_VAR_IN_CURRENT_AREA(v->data);
+      for (unsigned i = 0; i < v->max_elements; ++i)
+        accumulated[i] += current[i];
+      break;
+    }
+    default:
+      break;
+    }
+  }
+}
+
 static void print_scalar_variable(struct mutator_variable_desc *desc, int index) {
   switch (desc->type) {
   case MUTATOR_VAR_COUNTERS: {
     mutator_u64_var_t *counters = desc->data;
-    printf("%lu", (unsigned long)counters[index]);
+    mutator_u64_var_t *important = desc->important_data;
+    printf("%lu\t%lu", (unsigned long)important[index], (unsigned long)counters[index]);
     break;
   }
   case MUTATOR_VAR_STRINGS: {
@@ -515,8 +539,10 @@ void *afl_custom_init(/*afl_state_t*/ void *afl_, unsigned int seed_) {
   init_error_logging();
 
   struct mutator_state *state = calloc(1, sizeof(*state));
-  init_shm(&state->variables_shm, MUTATOR_SHM_VARS_ENV_NAME, MUTATOR_SHM_VARS_BYTES);
-  init_shm(&state->log_shm,       MUTATOR_SHM_LOG_ENV_NAME,  MUTATOR_SHM_LOG_BYTES);
+  init_shm(&state->variables_shm, MUTATOR_SHM_VARS_ENV_NAME,
+           MUTATOR_SHM_VARS_BYTES, 2 * MUTATOR_SHM_VARS_BYTES);
+  init_shm(&state->log_shm, MUTATOR_SHM_LOG_ENV_NAME,
+           MUTATOR_SHM_LOG_BYTES, MUTATOR_SHM_LOG_BYTES);
   init_temp_dir(&state->log_dir, "/tmp/afl-mutator-XXXXXX");
 
   return state;
@@ -564,12 +590,14 @@ size_t afl_custom_fuzz(void *data, uint8_t *buf, size_t buf_size, uint8_t **out_
     ERR("Trying to save log...\n");
     if (!save_log_from_shm(state, state->input, state->input_length, "best effort mode"))
       abort();
+    accumulate_important_data(state);
     load_log(state, &state->current_log, state->input, state->input_length);
     state->record_log_next_action = RECORD_LOG_NONE;
   case RECORD_LOG_CAPTURE_LOG_AS_IS:
     ERR("Trying to save log as-is...\n");
     if (!save_log_from_shm(state, NULL, 0, "best effort mode"))
       abort();
+    accumulate_important_data(state);
     state->record_log_next_action = RECORD_LOG_NONE;
     break;
   }
@@ -620,6 +648,9 @@ uint8_t afl_custom_queue_new_entry(void *data, const char *filename_new_queue,
   bool log_saved = save_log_from_shm(state, test_case, length, filename_new_queue);
   if (!log_saved && !strstr(filename_new_queue, ",orig:"))
     FATAL("Unexpected hash: %s\n", filename_new_queue);
+  // Do not initialize too early
+  if (log_saved)
+    accumulate_important_data(state);
 
   return 0;
 }

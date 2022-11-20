@@ -47,7 +47,13 @@ void mutator_ref_resource(unsigned kind, unsigned id, unsigned id_bytes, unsigne
   if (var_name) var_name->num_elements_real = (size)
 
 #define INCREMENT_DEBUG_COUNTER(var_name, index, increment) \
-  if (var_name##_counters) var_name##_counters[(index)] += (increment)
+  if (var_name##_counters) { \
+    mutator_u64_var_t *counter = &var_name##_counters[(index)]; \
+    mutator_u64_var_t *counter_current = (mutator_u64_var_t *)MUTATOR_SHM_VAR_IN_CURRENT_AREA(counter); \
+    unsigned inc = (increment); \
+    *counter += inc; \
+    *counter_current += inc; \
+  }
 
 #define DEBUG_INC(var_name) INCREMENT_DEBUG_COUNTER(var_name, 0, 1)
 
