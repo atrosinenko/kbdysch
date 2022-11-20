@@ -21,8 +21,10 @@
 #define NUM_SPLICES_ENV_NAME "KBDYSCH_MUTATOR_NUM_SPLICES"
 #define DEFAULT_NUM_SPLICES 4
 
+#define NUM_BEST_EFFORT_ITERATIONS 100
+
 #define FATAL(fmt, ...) { fprintf(stderr, "MUTATOR: " fmt, __VA_ARGS__); abort(); }
-#define ERR(fmt, ...) { if (error_log) fprintf(error_log, fmt, __VA_ARGS__); }
+#define ERR(...) { if (error_log) fprintf(error_log, __VA_ARGS__); }
 
 #define DECL_WITH_TYPE(type, new_name, ptr) \
   type *new_name = (type *)(ptr)
@@ -81,10 +83,18 @@ struct mutator_state {
   struct harness_log additional_log;
   int num_splices;
 
+  enum {
+    RECORD_LOG_NONE = 0,
+    RECORD_LOG_PREPARE_INPUT,
+    RECORD_LOG_CAPTURE_LOG,
+    RECORD_LOG_CAPTURE_LOG_AS_IS,
+  } record_log_next_action;
+
+  bool best_effort_mode;
+
   bool skipped_sections[MUTATOR_MAX_OFFSETS];
 
   unsigned current_mutation;
-  unsigned max_mutation;
 };
 
 static void init_error_logging(void) {
@@ -418,8 +428,12 @@ static void render_splice(struct mutator_state *state,
 
   if (!add_buf_size)
     return;
-  if (!load_log(state, &state->additional_log, add_buf, add_buf_size))
+  if (!load_log(state, &state->additional_log, add_buf, add_buf_size)) {
+    memcpy(state->output, add_buf, add_buf_size);
+    state->output_length = add_buf_size;
+    state->record_log_next_action = RECORD_LOG_CAPTURE_LOG_AS_IS;
     return;
+  }
   if (!state->additional_log.num_offsets)
     return;
 
@@ -454,12 +468,26 @@ static bool save_log_from_shm(struct mutator_state *state,
                               uint8_t *test_case, size_t length,
                               const char *description) {
   char hash[HASH_CHARS + 1];
-  kbdysch_compute_hash(hash, test_case, length);
-  hash[HASH_CHARS] = '\0';
-
-  if (memcmp(state->log_shm.shm_segment, hash, HASH_CHARS)) {
-    ERR("Hash mismatch: %s (%s)\n", hash, description);
-    return false;
+  if (length == 0) {
+    assert(test_case == NULL);
+    // Don't compare the hash, just save what we got
+    memcpy(hash, state->log_shm.shm_segment, HASH_CHARS);
+    hash[HASH_CHARS] = '\0';
+    if (strspn(hash, "0123456789abcdef") != HASH_CHARS) {
+      ERR("Unexpected characters in hash\n");
+      return false;
+    }
+  } else {
+    kbdysch_compute_hash(hash, test_case, length);
+    hash[HASH_CHARS] = '\0';
+    if (memcmp(state->log_shm.shm_segment, hash, HASH_CHARS)) {
+      char real_hash[HASH_CHARS + 1];
+      memcpy(real_hash, state->log_shm.shm_segment, HASH_CHARS);
+      real_hash[HASH_CHARS] = 0;
+      ERR("Hash mismatch:  %s  (%s)\n", hash, description);
+      ERR("         Real: [%s]\n", real_hash);
+      return false;
+    }
   }
 
   int log_fd = openat(state->log_dir.dir_fd, hash, O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -497,12 +525,21 @@ uint32_t afl_custom_fuzz_count(void *data, const uint8_t *buf, size_t buf_size) 
   DEBUG_TRACE_FUNC;
 
   // Input is loaded by afl_custom_queue_get()
-  load_log(state, &state->current_log, state->input, state->input_length);
-  state->current_mutation = 1; // after the first SET_OFFSET
-  state->max_mutation = 1 + state->current_log.num_offsets;
+  bool has_log = load_log(state, &state->current_log, state->input, state->input_length);
+  state->current_mutation = 0;
 
-  // number of mutations
-  return (1 + state->num_splices) * (state->max_mutation - state->current_mutation);
+  state->best_effort_mode = !has_log;
+  state->record_log_next_action = has_log ? RECORD_LOG_NONE : RECORD_LOG_PREPARE_INPUT;
+
+  if (state->best_effort_mode) {
+    ERR("  %zu bytes, recording log...\n", buf_size);
+    return NUM_BEST_EFFORT_ITERATIONS;
+  }
+
+  unsigned num_mutations = 0;
+  num_mutations += state->current_log.num_offsets;
+  num_mutations += state->current_log.num_offsets * state->num_splices;
+  return num_mutations;
 }
 
 size_t afl_custom_fuzz(void *data, uint8_t *buf, size_t buf_size, uint8_t **out_buf,
@@ -510,19 +547,48 @@ size_t afl_custom_fuzz(void *data, uint8_t *buf, size_t buf_size, uint8_t **out_
   DECL_WITH_TYPE(struct mutator_state, state, data);
   DEBUG_TRACE_FUNC;
 
-  bool do_splice = 0 != state->current_mutation % (1 + state->num_splices);
-  unsigned index = state->current_mutation / (1 + state->num_splices);
-  ++state->current_mutation;
-
-  *out_buf = state->output;
-
-  if (do_splice) {
-    render_splice(state, index, add_buf, add_buf_size);
-  } else {
-    memset(state->skipped_sections, 0, sizeof(bool) * MUTATOR_MAX_OFFSETS);
-    state->skipped_sections[index] = true;
-    render_dropped_section(state);
+  switch (state->record_log_next_action) {
+  case RECORD_LOG_NONE:
+    break;
+  case RECORD_LOG_PREPARE_INPUT:
+    ERR("Requesting log...\n");
+    if (state->input_length != buf_size || memcmp(state->input, buf, state->input_length))
+      ERR("Unexpected buf and buf_size=%zu\n", buf_size);
+    ++state->current_mutation;
+    state->record_log_next_action = RECORD_LOG_CAPTURE_LOG;
+    *out_buf = buf;
+    return buf_size;
+  case RECORD_LOG_CAPTURE_LOG:
+    ERR("Trying to save log...\n");
+    if (!save_log_from_shm(state, state->input, state->input_length, "best effort mode"))
+      abort();
+    load_log(state, &state->current_log, state->input, state->input_length);
+    state->record_log_next_action = RECORD_LOG_NONE;
+  case RECORD_LOG_CAPTURE_LOG_AS_IS:
+    ERR("Trying to save log as-is...\n");
+    if (!save_log_from_shm(state, NULL, 0, "best effort mode"))
+      abort();
+    state->record_log_next_action = RECORD_LOG_NONE;
+    break;
   }
+
+  unsigned num_offsets = state->current_log.num_offsets;
+
+  if (state->best_effort_mode) {
+    unsigned index = state->current_mutation % num_offsets;
+    render_splice(state, index, add_buf, add_buf_size);
+  } else if (state->current_mutation < num_offsets) {
+    memset(state->skipped_sections, 0, sizeof(bool) * MUTATOR_MAX_OFFSETS);
+    state->skipped_sections[1 + state->current_mutation] = true;
+    render_dropped_section(state);
+  } else {
+    unsigned index = state->current_mutation - num_offsets;
+    index /= state->num_splices;
+    assert(index < num_offsets);
+    render_splice(state, 1 + index, add_buf, add_buf_size);
+  }
+  ++state->current_mutation;
+  *out_buf = state->output;
   return state->output_length;
 }
 
