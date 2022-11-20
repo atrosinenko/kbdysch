@@ -3,6 +3,7 @@
 #endif
 
 #include "kbdysch/mutator-defs.h"
+#include "kbdysch/options.h"
 #include "kbdysch/hashing.h"
 #include "afl-interface-decls.h"
 
@@ -21,11 +22,10 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 
-#define DEBUG_ENV_NAME       "KBDYSCH_MUTATOR_DEBUG"
-#define NUM_SPLICES_ENV_NAME "KBDYSCH_MUTATOR_NUM_SPLICES"
-#define DEFAULT_NUM_SPLICES 4
-
-#define NUM_BEST_EFFORT_ITERATIONS 100
+DECLARE_BOOL_KNOB(debug_logging, "KBDYSCH_MUTATOR_DEBUG")
+DECLARE_INT_KNOB_DEF(num_splices, "KBDYSCH_MUTATOR_NUM_SPLICES", 4)
+DECLARE_INT_KNOB_DEF(num_best_effort_iterations,
+                     "KBDYSCH_MUTATOR_NUM_BEST_EFFORT_ITERATIONS", 100)
 
 #define FATAL(fmt, ...) { fprintf(stderr, "MUTATOR: " fmt, __VA_ARGS__); abort(); }
 #define ERR(...) { if (error_log) fprintf(error_log, __VA_ARGS__); }
@@ -85,7 +85,6 @@ struct mutator_state {
 
   struct harness_log current_log;
   struct harness_log additional_log;
-  int num_splices;
 
   enum {
     RECORD_LOG_NONE = 0,
@@ -102,7 +101,7 @@ struct mutator_state {
 };
 
 static void init_error_logging(void) {
-  if (!getenv(DEBUG_ENV_NAME))
+  if (!debug_logging)
     return;
 
   char log_name[128];
@@ -520,12 +519,6 @@ void *afl_custom_init(/*afl_state_t*/ void *afl_, unsigned int seed_) {
   init_shm(&state->log_shm,       MUTATOR_SHM_LOG_ENV_NAME,  MUTATOR_SHM_LOG_BYTES);
   init_temp_dir(&state->log_dir, "/tmp/afl-mutator-XXXXXX");
 
-  const char *num_splices_str = getenv(NUM_SPLICES_ENV_NAME);
-  if (num_splices_str)
-    state->num_splices = atoi(num_splices_str);
-  else
-    state->num_splices = DEFAULT_NUM_SPLICES;
-
   return state;
 }
 
@@ -542,12 +535,12 @@ uint32_t afl_custom_fuzz_count(void *data, const uint8_t *buf, size_t buf_size) 
 
   if (state->best_effort_mode) {
     ERR("  %zu bytes, recording log...\n", buf_size);
-    return NUM_BEST_EFFORT_ITERATIONS;
+    return num_best_effort_iterations;
   }
 
   unsigned num_mutations = 0;
   num_mutations += state->current_log.num_offsets;
-  num_mutations += state->current_log.num_offsets * state->num_splices;
+  num_mutations += state->current_log.num_offsets * num_splices;
   return num_mutations;
 }
 
@@ -592,7 +585,7 @@ size_t afl_custom_fuzz(void *data, uint8_t *buf, size_t buf_size, uint8_t **out_
     render_dropped_section(state);
   } else {
     unsigned index = state->current_mutation - num_offsets;
-    index /= state->num_splices;
+    index /= num_splices;
     assert(index < num_offsets);
     render_splice(state, 1 + index, add_buf, add_buf_size);
   }

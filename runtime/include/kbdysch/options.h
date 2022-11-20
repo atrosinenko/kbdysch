@@ -1,6 +1,8 @@
 #ifndef KBDYSCH_OPTIONS_H
 #define KBDYSCH_OPTIONS_H
 
+#include "kbdysch/common-defs.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
