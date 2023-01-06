@@ -12,7 +12,10 @@
 #include <syscall.h> // for SYS_* numbers
 
 #ifdef USE_LKL
+// Workaround for "redefinition of 'ipc_perm'"
+#define ipc_perm __ipc_perm
 #include "lkl.h"
+#undef ipc_perm
 #endif
 
 #ifdef __cplusplus
