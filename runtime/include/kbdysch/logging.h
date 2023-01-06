@@ -3,6 +3,10 @@
 
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum log_category {
   LOG_GENERAL_TRACE,
   LOG_INVOKER_TRACE,
@@ -29,5 +33,9 @@ void log_printf(const struct fuzzer_state *state_or_null,
     log_printf(state, LOG_WARNING, true, __VA_ARGS__)
 #define LOG_FATAL(...) \
     log_printf(NULL, LOG_ASSERTION_FAILED, true, __VA_ARGS__)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // KBDYSCH_LOGGING_H

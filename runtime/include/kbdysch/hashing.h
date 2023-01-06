@@ -4,6 +4,10 @@
 #include <memory.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define HASH_CHARS 16
 
 typedef uint32_t fast_hash_t;
@@ -26,5 +30,9 @@ static inline char to_hex(unsigned n) {
   else
     return 'a' + (n - 10);
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // KBDYSCH_HASHING_H

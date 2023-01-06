@@ -4,6 +4,10 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct fuzzer_state;
 
 /**
@@ -48,5 +52,9 @@ void res_mark_section_start(struct fuzzer_state *state);
  */
 void res_mark_consumed_reference(struct fuzzer_state *state,
                                  int kind, int id, unsigned id_bytes);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // KBDYSCH_INPUT_H

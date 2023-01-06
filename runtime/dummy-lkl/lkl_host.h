@@ -5,6 +5,10 @@
 
 #include <sys/uio.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct lkl_blk_req {
   /* dummy */
   unsigned type;
@@ -37,5 +41,9 @@ extern struct lkl_host_operations lkl_host_ops;
 
 int lkl_start_kernel(struct lkl_host_operations *lkl_ops,
                      const char *cmd_line, ...);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // DUMMY_LKL_HOST_H

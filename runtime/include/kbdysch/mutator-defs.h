@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Common definitions for harness executables and mutator library
 
 #define MUTATOR_SHM_VARS_ENV_NAME "__KBDYSCH_MUTATOR_SHM_VARS_ID"
@@ -112,5 +116,9 @@ struct mutator_log_ref_resource {
 #define MUTATOR_SHM_LOG_BYTES (HASH_CHARS + MUTATOR_MAX_LOG_BYTES)
 #define MUTATOR_MAX_LOG_ENTRIES(type) (MUTATOR_MAX_LOG_BYTES / (sizeof(struct mutator_log_record_header) + sizeof(struct type)))
 #define MUTATOR_MAX_OFFSETS MUTATOR_MAX_LOG_ENTRIES(mutator_log_set_offset)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // KBDYSCH_MUTATOR_DEFS_H

@@ -11,6 +11,10 @@ union lkl_bpf_attr;
 #include <stdint.h>
 #include <memory.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define LKL_HAS_STATX_SYSCALL 1
 
 #define MAX_PART_COUNT 10
@@ -34,5 +38,9 @@ typedef uint8_t buffer_t[MAX_BUFFER_LEN + WATERMARK_SIZE];
 
 // For raw buffers that could possibly contain aligned structures
 #define ALIGNED_ENOUGH __attribute__((aligned(64)))
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // KBDYSCH_COMMON_DEFS_H

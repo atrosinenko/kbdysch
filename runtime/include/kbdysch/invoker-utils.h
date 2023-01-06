@@ -8,6 +8,10 @@
 #include <syscall.h>
 #include <setjmp.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define LOG_ASSIGN(fmt, ...) \
   if (name) { \
     INVOKER_TRACE(state, ("  Assigned %s = " fmt), name, __VA_ARGS__); \
@@ -299,5 +303,9 @@ void align_next_block(struct fuzzer_state *state, int block_index, unsigned deco
 size_t do_invoke(struct fuzzer_state *state, int block_index);
 void print_summary_at_exit(struct fuzzer_state *state);
 /// \@}
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // KBDYSCH_INVOKER_UTILS_H

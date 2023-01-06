@@ -13,6 +13,10 @@ struct lkl_disk {
 };
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct fuzzer_state;
 
 #define ACCESS_HISTORY_LEN 1024
@@ -45,6 +49,10 @@ void blockdev_patch_one_word(struct fuzzer_state *state, struct kbdysch_block_de
 
 #ifdef USE_LKL
 extern struct lkl_dev_blk_ops kbdysch_blk_ops;
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif // KBDYSCH_BLOCK_H

@@ -7,6 +7,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define lkl_linux_dirent64 dirent
 
 #define lkl_strerror strerror
@@ -53,5 +57,9 @@ int lkl_sys_mkdir(const char *path, mode_t mode);
 int lkl_sys_mknodat(int dirfd, const char *path, mode_t mode, dev_t dev);
 
 long lkl_syscall(long no, long *params);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // DUMMY_LKL_H

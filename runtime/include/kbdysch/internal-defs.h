@@ -7,6 +7,10 @@
 
 #include <setjmp.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Presense of one of the following words (case insensitive) in the `printk` message
  * is considered as failure (can be disabled).
@@ -93,5 +97,9 @@ struct fuzzer_state {
 };
 
 void res_close_all_fds(struct fuzzer_state *state);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // KBDYSCH_INTERNAL_DEFS_H

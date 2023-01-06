@@ -6,6 +6,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /// \defgroup usage_help
 /// @{
 
@@ -53,5 +57,9 @@ const char *get_string_knob(const char *name, const char *default_value);
   DECLARE_KNOB_DEF(const char *, get_string_knob, name, var, NULL)
 
 /// @}
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // KBDYSCH_OPTIONS_H

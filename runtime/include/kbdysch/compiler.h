@@ -1,6 +1,10 @@
 #ifndef KBDYSCH_COMPILER_H
 #define KBDYSCH_COMPILER_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @file This header is a single place for local instrumenter-specific adjustments.
  */
@@ -30,5 +34,9 @@ static inline void compiler_exit_lkl(void)
 }
 
 /// @}
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // KBDYSCH_COMPILER_H

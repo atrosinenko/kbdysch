@@ -15,6 +15,10 @@
 #include "lkl.h"
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void res_add_to_known_strings(struct fuzzer_state *state, const char *string);
 
 void kernel_setup_disk(struct fuzzer_state *state, const char *filename, const char *fstype);
@@ -146,5 +150,9 @@ static inline long checked_syscall_impl(
 #define IS_U16(x) (((x) & ~0xffffLLu    ) == 0)
 /// Whether `x` fits in 32 bits
 #define IS_U32(x) (((x) & ~0xffffffffLLu) == 0)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // KBDYSCH_KBDYSCH_H

@@ -4,6 +4,10 @@
 #include "kbdysch/common-defs.h"
 #include "kbdysch/mutator-defs.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct mutator_var_header debug_variable;
 
 void mutator_init(void);
@@ -56,5 +60,9 @@ void mutator_ref_resource(unsigned kind, unsigned id, unsigned id_bytes, unsigne
   }
 
 #define DEBUG_INC(var_name) INCREMENT_DEBUG_COUNTER(var_name, 0, 1)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // KBDYSCH_MUTATOR_INTERFACE_H

@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct key_desc {
     char *prefix;
 	int8_t id;
@@ -51,5 +55,9 @@ struct my_sockaddr_storage {
   uint16_t sa_family;
   uint8_t sa_data[126];
 };
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // KBDYSCH_API_DEFS_H
