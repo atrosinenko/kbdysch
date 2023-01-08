@@ -8,6 +8,8 @@ set(KBDYSCH_STANDALONE_C_COMPILER   "cc"  CACHE STRING "C compiler for non-instr
 set(KBDYSCH_STANDALONE_CXX_COMPILER "c++" CACHE STRING "C++ compiler for non-instrumented standalone executables")
 set(KBDYSCH_PERFORM_AFL_TESTS OFF CACHE BOOL "Perform tests that depend on AFL++")
 
+add_definitions(-D_GNU_SOURCE)
+
 CheckBooleanPreprocessorExpression(
     "__SANITIZE_ADDRESS__ || __has_feature(address_sanitizer)"
     KBDYSCH_ASAN_ENABLED)

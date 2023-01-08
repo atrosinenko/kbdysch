@@ -1,8 +1,6 @@
 #ifndef KBDYSCH_COMMON_DEFS_H
 #define KBDYSCH_COMMON_DEFS_H
 
-#define _GNU_SOURCE
-
 // Hack preventing LKL's BPF definitions from interfering with host ones
 #define __LKL__LINUX_BPF_H__
 union lkl_bpf_attr;
