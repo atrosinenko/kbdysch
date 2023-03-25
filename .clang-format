@@ -1,0 +1,14 @@
+Language: Cpp
+BasedOnStyle: LLVM
+
+ColumnLimit: 0
+
+IncludeCategories:
+  - Regex: '^"kbdysch/'
+  - Regex: '^"[^/]*"$'
+  - Regex: '.*'
+
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: Inline
+SpaceAroundPointerQualifiers: Before
+SpacesInContainerLiterals: false
