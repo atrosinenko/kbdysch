@@ -2,6 +2,7 @@ ConfigureNonInstrumentedDirectory()
 
 add_library(afl-generic-mutator SHARED
   afl-generic-mutator.cpp
+  helpers.cpp
   ../common/hashing.c
   ../common/options.c
 )

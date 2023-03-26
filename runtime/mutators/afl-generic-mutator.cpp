@@ -2,11 +2,13 @@
 #undef NDEBUG
 #endif
 
+#include "kbdysch/hashing.h"
 #include "kbdysch/mutator-defs.h"
 #include "kbdysch/options.h"
-#include "kbdysch/hashing.h"
 #include "afl-interface-decls.h"
+#include "helpers.h"
 
+#include <array>
 #include <string>
 #include <vector>
 
@@ -22,24 +24,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <sys/ipc.h>
-#include <sys/shm.h>
-
-DECLARE_BOOL_KNOB(debug_logging, "KBDYSCH_MUTATOR_DEBUG")
 DECLARE_INT_KNOB_DEF(num_splices, "KBDYSCH_MUTATOR_NUM_SPLICES", 4)
 DECLARE_INT_KNOB_DEF(num_best_effort_iterations,
                      "KBDYSCH_MUTATOR_NUM_BEST_EFFORT_ITERATIONS", 100)
 
-#define FATAL(fmt, ...) { fprintf(stderr, "MUTATOR: " fmt, __VA_ARGS__); abort(); }
-#define ERR(...) { if (error_log) fprintf(error_log, __VA_ARGS__); }
-
-#define DECL_WITH_TYPE(type, new_name, ptr) \
-  type *new_name = (type *)(ptr)
-
-#define DEBUG_TRACE_FUNC // fprintf(stderr, "MUTATOR: %s: called\n", __func__)
-#define DEBUG(fmt, ...)  // fprintf(stderr, "MUTATOR: %s: " fmt, __func__, __VA_ARGS__)
-
-static FILE *error_log;
+using namespace kbdysch::mutator;
 
 struct mutator_variable_desc {
   unsigned type;
@@ -54,39 +43,8 @@ struct mutator_variable_desc {
   bool fill_from_dereferenceable_shm(uint8_t *ptr);
 };
 
-class mutator_shm {
-public:
-  mutator_shm(const char *env_var_name,
-              size_t allocatable_bytes, size_t total_bytes);
-
-  uint8_t *begin() { return shm_segment; }
-
-  bool in_bounds(uint8_t *ptr, size_t length) const;
-
-  ~mutator_shm();
-
-private:
-  int shm_id;
-  uint8_t *shm_segment;
-  size_t allocatable_bytes;
-};
-
-class mutator_temp_dir {
-public:
-  mutator_temp_dir(const char *name);
-
-  int fd() const { return dir_fd; }
-
-  ~mutator_temp_dir();
-
-private:
-  static const size_t MAX_DIR_NAME = 128;
-  char dir_name[MAX_DIR_NAME];
-  int dir_fd;
-};
-
 struct harness_log {
-  uint8_t raw_log[MUTATOR_MAX_LOG_BYTES];
+  std::array<uint8_t, MUTATOR_MAX_LOG_BYTES> raw_log;
 
   // For convenience, offsets[num_offsets] == input_length
   unsigned offsets[MUTATOR_MAX_OFFSETS + 1];
@@ -94,10 +52,12 @@ struct harness_log {
 };
 
 struct mutator_state {
+  mutator_state();
+
   // Low-level details
-  mutator_shm *variables_shm;
-  mutator_shm *log_shm;
-  mutator_temp_dir *log_dir;
+  shm_segment variables_shm;
+  shm_segment log_shm;
+  temp_dir log_dir;
 
   // Variables area (parsed once per fuzzing session)
   std::vector<mutator_variable_desc> variables;
@@ -126,71 +86,10 @@ struct mutator_state {
   unsigned current_mutation;
 };
 
-static void init_error_logging(void) {
-  if (!debug_logging)
-    return;
-
-  char log_name[128];
-  sprintf(log_name, "/tmp/kbdysch-mutator-%d.log", getpid());
-  error_log = fopen(log_name, "w");
-  setvbuf(error_log, NULL, _IONBF, 0);
-}
-
-static bool in_bounds(const void *mem_area, size_t mem_size,
-                      const void *ptr, size_t requested_size) {
-  uintptr_t mem_start = (uintptr_t)mem_area;
-  uintptr_t ptr_start = (uintptr_t)ptr;
-
-  if ((uintptr_t)ptr < (uintptr_t)mem_area) {
-    ERR("Pointer %p outside of memory area starting at %p.\n",
-        ptr, mem_area);
-    return false;
-  }
-  size_t offset_in_mem_area = (uintptr_t)ptr - (uintptr_t)mem_area;
-  if (offset_in_mem_area > mem_size ||
-      requested_size > mem_size ||
-      offset_in_mem_area + requested_size > mem_size) {
-    ERR("Pointer %p at invalid offset 0x%zx in memory area of size 0x%zx.\n",
-        ptr, offset_in_mem_area, mem_size);
-    return false;
-  }
-  return true;
-}
-
-mutator_shm::mutator_shm(const char *env_var_name,
-                         size_t allocatable_bytes, size_t total_bytes)
-    : allocatable_bytes(allocatable_bytes) {
-  char buf[32];
-  // Allocate SHM segment
-  shm_id = shmget(IPC_PRIVATE, total_bytes, 0600);
-  shm_segment = (uint8_t *)shmat(shm_id, NULL, 0);
-  // Make SHM discoverable by harness
-  sprintf(buf, "%d", shm_id);
-  setenv(env_var_name, buf, 1);
-}
-
-bool mutator_shm::in_bounds(uint8_t *ptr, size_t length) const {
-  return ::in_bounds(shm_segment, allocatable_bytes,
-                     ptr, length);
-}
-
-mutator_shm::~mutator_shm() {
-  shmdt(shm_segment);
-  shmctl(shm_id, IPC_RMID, NULL);
-}
-
-mutator_temp_dir::mutator_temp_dir(const char *name) {
-  strncpy(dir_name, name, MAX_DIR_NAME);
-  dir_name[MAX_DIR_NAME - 1] = 0;
-  mkdtemp(dir_name);
-
-  dir_fd = open(dir_name, O_RDONLY);
-  assert(dir_fd >= 0);
-}
-
-mutator_temp_dir::~mutator_temp_dir() {
-  close(dir_fd);
-  // TODO remove directory
+mutator_state::mutator_state()
+    : variables_shm(MUTATOR_SHM_VARS_ENV_NAME, MUTATOR_SHM_VARS_BYTES, 2 * MUTATOR_SHM_VARS_BYTES),
+      log_shm(MUTATOR_SHM_LOG_ENV_NAME, MUTATOR_SHM_LOG_BYTES, MUTATOR_SHM_LOG_BYTES),
+      log_dir("/tmp/afl-mutator-XXXXXX") {
 }
 
 bool mutator_variable_desc::fill_from_dereferenceable_shm(uint8_t *ptr) {
@@ -233,7 +132,7 @@ static void parse_variables_area(struct mutator_state *state) {
     return;
   state->vars_shm_parsed = true;
 
-  mutator_shm *shm = state->variables_shm;
+  shm_segment *shm = &state->variables_shm;
   uint8_t *current_ptr = shm->begin();
   for (int current_var = 0; ; ++current_var) {
     DEBUG("Parsing variable #%d...\n", current_var);
@@ -327,7 +226,7 @@ static void print_variables(struct mutator_state *state) {
     const uint8_t *ptr = &(log_data)[header_offset];                     \
     size_t total_bytes = sizeof(struct mutator_log_record_header);       \
     total_bytes += 16; /* FIXME payload size */                          \
-    if (!in_bounds((log_data), MUTATOR_MAX_LOG_BYTES, ptr, total_bytes)) \
+    if (!buffer_contains((log_data), ptr, total_bytes))                  \
       ERR("Error parsing log, offset %d\n", header_offset);              \
     DECL_WITH_TYPE(struct mutator_log_record_header, header, ptr);       \
     const void *payload = &ptr[sizeof(*header)];                         \
@@ -344,21 +243,15 @@ static bool load_log(struct mutator_state *state,
   kbdysch_compute_hash(hash, buf, buf_length);
   hash[HASH_CHARS] = '\0';
 
-  int log_fd = openat(state->log_dir->fd(), hash, O_RDONLY);
-  if (log_fd < 0) {
-    ERR("Cannot open log for hash %s\n", hash);
-    memset(log, 0, sizeof(*log));
+  int length = state->log_dir.read_file(hash, log->raw_log);
+  if (length < 0) {
+    memset(log->raw_log.data(), 0, log->raw_log.size());
     return false;
   }
-
-  int length = read(log_fd, log->raw_log, MUTATOR_MAX_LOG_BYTES);
-  if (length < 0)
-    FATAL("Cannot read log: %s", strerror(errno));
   if (length < MUTATOR_MAX_LOG_BYTES) {
     DEBUG("Read only %d bytes of log.", length);
     memset(&log->raw_log[length], 0, MUTATOR_MAX_LOG_BYTES - length);
   }
-  close(log_fd);
 
   // Parse offsets
   log->num_offsets = 0;
@@ -532,7 +425,7 @@ static bool save_log_from_shm(struct mutator_state *state,
   if (length == 0) {
     assert(test_case == NULL);
     // Don't compare the hash, just save what we got
-    memcpy(hash, state->log_shm->begin(), HASH_CHARS);
+    memcpy(hash, state->log_shm.begin(), HASH_CHARS);
     hash[HASH_CHARS] = '\0';
     if (strspn(hash, "0123456789abcdef") != HASH_CHARS) {
       ERR("Unexpected characters in hash\n");
@@ -541,9 +434,9 @@ static bool save_log_from_shm(struct mutator_state *state,
   } else {
     kbdysch_compute_hash(hash, test_case, length);
     hash[HASH_CHARS] = '\0';
-    if (memcmp(state->log_shm->begin(), hash, HASH_CHARS)) {
+    if (memcmp(state->log_shm.begin(), hash, HASH_CHARS)) {
       char real_hash[HASH_CHARS + 1];
-      memcpy(real_hash, state->log_shm->begin(), HASH_CHARS);
+      memcpy(real_hash, state->log_shm.begin(), HASH_CHARS);
       real_hash[HASH_CHARS] = 0;
       ERR("Hash mismatch:  %s  (%s)\n", hash, description);
       ERR("         Real: [%s]\n", real_hash);
@@ -551,11 +444,8 @@ static bool save_log_from_shm(struct mutator_state *state,
     }
   }
 
-  int log_fd = openat(state->log_dir->fd(), hash, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-  if (log_fd < 0)
-    FATAL("Cannot write log data: %s.\n", strerror(errno));
-  write(log_fd, &state->log_shm->begin()[HASH_CHARS], MUTATOR_MAX_LOG_BYTES);
-  close(log_fd);
+  buffer_ref log_contents(&state->log_shm.begin()[HASH_CHARS], MUTATOR_MAX_LOG_BYTES);
+  state->log_dir.write_file(hash, log_contents);
 
   return true;
 }
@@ -567,14 +457,7 @@ void *afl_custom_init(/*afl_state_t*/ void *afl_, unsigned int seed_) {
 
   init_error_logging();
 
-  struct mutator_state *state = (struct mutator_state *)calloc(1, sizeof(*state));
-  state->variables_shm = new mutator_shm(
-    MUTATOR_SHM_VARS_ENV_NAME,
-    MUTATOR_SHM_VARS_BYTES, 2 * MUTATOR_SHM_VARS_BYTES);
-  state->log_shm = new mutator_shm(
-    MUTATOR_SHM_LOG_ENV_NAME,
-    MUTATOR_SHM_LOG_BYTES, MUTATOR_SHM_LOG_BYTES);
-  state->log_dir = new mutator_temp_dir("/tmp/afl-mutator-XXXXXX");
+  mutator_state *state = new mutator_state();
 
   return state;
 }
@@ -693,11 +576,7 @@ void afl_custom_deinit(void *data) {
   parse_variables_area(state);
   print_variables(state);
 
-  delete state->log_dir;
-  delete state->log_shm;
-  delete state->variables_shm;
   delete state;
 
-  if (error_log)
-    fclose(error_log);
+  deinit_error_logging();
 }
