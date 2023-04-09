@@ -7,6 +7,7 @@
 #include "kbdysch/options.h"
 #include "afl-interface-decls.h"
 #include "helpers.h"
+#include "journal.h"
 
 #include <array>
 #include <string>
@@ -56,8 +57,8 @@ struct mutator_state {
 
   // Low-level details
   shm_segment variables_shm;
-  shm_segment log_shm;
-  temp_dir log_dir;
+  shm_segment journal_shm;
+  temp_dir journal_dir;
 
   // Variables area (parsed once per fuzzing session)
   std::vector<mutator_variable_desc> variables;
@@ -69,8 +70,8 @@ struct mutator_state {
   uint8_t output[MUTATOR_MAX_TEST_CASE_LENGTH];
   unsigned output_length;
 
-  struct harness_log current_log;
-  struct harness_log additional_log;
+  journal_data current_journal;
+  journal_data additional_journal;
 
   enum {
     RECORD_LOG_NONE = 0,
@@ -88,8 +89,9 @@ struct mutator_state {
 
 mutator_state::mutator_state()
     : variables_shm(MUTATOR_SHM_VARS_ENV_NAME, MUTATOR_SHM_VARS_BYTES, 2 * MUTATOR_SHM_VARS_BYTES),
-      log_shm(MUTATOR_SHM_LOG_ENV_NAME, MUTATOR_SHM_LOG_BYTES, MUTATOR_SHM_LOG_BYTES),
-      log_dir("/tmp/afl-mutator-XXXXXX") {
+      journal_shm(MUTATOR_SHM_LOG_ENV_NAME, MUTATOR_SHM_LOG_BYTES, MUTATOR_SHM_LOG_BYTES),
+      journal_dir("/tmp/afl-mutator-XXXXXX"),
+      current_journal(journal_dir), additional_journal(journal_dir) {
 }
 
 bool mutator_variable_desc::fill_from_dereferenceable_shm(uint8_t *ptr) {
@@ -221,185 +223,93 @@ static void print_variables(struct mutator_state *state) {
   }
 }
 
-#define ITERATE_LOG_HEADERS(log_data, loop_body) \
-  for (int header_offset = 0; header_offset < MUTATOR_MAX_LOG_BYTES; ) { \
-    const uint8_t *ptr = &(log_data)[header_offset];                     \
-    size_t total_bytes = sizeof(struct mutator_log_record_header);       \
-    total_bytes += 16; /* FIXME payload size */                          \
-    if (!buffer_contains((log_data), ptr, total_bytes))                  \
-      ERR("Error parsing log, offset %d\n", header_offset);              \
-    DECL_WITH_TYPE(struct mutator_log_record_header, header, ptr);       \
-    const void *payload = &ptr[sizeof(*header)];                         \
-    loop_body;                                                           \
-    if (header->type == MUTATOR_LOG_STOP)                                \
-      break;                                                             \
-    header_offset += header->size;                                       \
-  }
-
-static bool load_log(struct mutator_state *state,
-                     struct harness_log *log,
-                     const uint8_t *buf, size_t buf_length) {
-  char hash[HASH_CHARS + 1];
-  kbdysch_compute_hash(hash, buf, buf_length);
-  hash[HASH_CHARS] = '\0';
-
-  int length = state->log_dir.read_file(hash, log->raw_log);
-  if (length < 0) {
-    memset(log->raw_log.data(), 0, log->raw_log.size());
-    return false;
-  }
-  if (length < MUTATOR_MAX_LOG_BYTES) {
-    DEBUG("Read only %d bytes of log.", length);
-    memset(&log->raw_log[length], 0, MUTATOR_MAX_LOG_BYTES - length);
-  }
-
-  // Parse offsets
-  log->num_offsets = 0;
-  ITERATE_LOG_HEADERS(log->raw_log, {
-    if (header->type == MUTATOR_LOG_SET_OFFSET) {
-      DECL_WITH_TYPE(struct mutator_log_set_offset, set_offset, payload);
-      if (set_offset->offset >= state->input_length)
-        break;
-      log->offsets[log->num_offsets++] = set_offset->offset;
-    }
-  });
-  if (log->num_offsets && log->offsets[log->num_offsets - 1] >= buf_length) {
-    ERR("Out of bounds offset: %u at index %u.\n",
-        log->offsets[log->num_offsets - 1], log->num_offsets - 1);
-  }
-  log->offsets[log->num_offsets] = buf_length;
-
-  return true;
-}
-
 // Section 0 is the beginning of file before the first SET_OFFSET
 static void render_dropped_section(struct mutator_state *state) {
-  unsigned input_pos = 0;
+  const auto &sections = state->current_journal.sections();
+  const auto &references = state->current_journal.resource_references();
+  const unsigned num_sections = sections.size();
   unsigned output_pos = 0;
 
-  uint16_t resources[MUTATOR_MAX_RESOURCE_KINDS][MUTATOR_MAX_RESOURCE_IDS];
-  memset(&resources, -1, sizeof(resources));
-
-  int current_section = 0;
-  unsigned saved_input_pos = 0;
-  // For rolling back if non-existing resource is referenced
-  unsigned saved_output_pos = 0;
-
-  // Copy header
-  memcpy(state->output, state->input, state->current_log.offsets[0]);
-  saved_input_pos  = input_pos  = state->current_log.offsets[0];
-  saved_output_pos = output_pos = state->current_log.offsets[0];
-
-  ITERATE_LOG_HEADERS(state->current_log.raw_log, {
-    switch (header->type) {
-    case MUTATOR_LOG_STOP:
-      break;
-    case MUTATOR_LOG_SET_OFFSET: {
-      ++current_section;
-      saved_input_pos = input_pos;
-      saved_output_pos = output_pos;
-
-      // offset n <-> section (n+1)
-      unsigned input_pos_next = state->current_log.offsets[current_section];
-      if (input_pos_next < input_pos)
-        break;
-
-      // copy the next portion of input, so it can be patched as needed
-      if (!state->skipped_sections[current_section]) {
-        unsigned length = input_pos_next - input_pos;
-        memcpy(&state->output[output_pos],
-               &state->input[input_pos],
-               length);
-        output_pos += length;
-      }
-
-      input_pos = input_pos_next;
-      break;
+  for (const auto &ref : references) {
+    if (ref.defining_section >= num_sections ||
+        ref.using_section >= num_sections) {
+      ERR("Unexpected reference: defines %u / uses %u (total %u)\n",
+          ref.defining_section, ref.using_section, num_sections);
+      continue;
     }
-    case MUTATOR_LOG_NEW_RES: {
-      DECL_WITH_TYPE(struct mutator_log_new_resource, new_res, payload);
-      unsigned kind = new_res->kind;
-      unsigned id = new_res->id;
-      if (kind >= MUTATOR_MAX_RESOURCE_KINDS || id >= MUTATOR_MAX_RESOURCE_IDS) {
-        ERR("Section %u, new resource: invalid kind=%u, id=%u\n", current_section, kind, id);
-        break;
-      }
-      resources[new_res->kind][new_res->id] = current_section;
-      break;
-    }
-    case MUTATOR_LOG_REF_RES: {
-      DECL_WITH_TYPE(struct mutator_log_ref_resource, ref_res, payload);
-      unsigned kind = ref_res->kind;
-      unsigned id = ref_res->id;
-      if (kind >= MUTATOR_MAX_RESOURCE_KINDS || id >= MUTATOR_MAX_RESOURCE_IDS) {
-        ERR("Section %u, referenced resource: invalid kind=%u, id=%u\n", current_section, kind, id);
-        break;
-      }
-      unsigned defining_section = resources[kind][id];
-      if (defining_section > current_section) {
-        ERR("Section %u, referenced resource (%u, %u) defined by section %u\n",
-            current_section, kind, id, defining_section);
-        break;
-      }
-      if (state->skipped_sections[defining_section]) {
-        state->skipped_sections[current_section] = true;
-        output_pos = saved_output_pos;
-        break;
-      }
+    if (state->skipped_sections[ref.defining_section])
+      state->skipped_sections[ref.using_section] = true;
+  }
 
-      if (state->skipped_sections[current_section])
-        break;
+  auto cur_reference = references.begin();
+  for (int section_idx = 0; section_idx < num_sections; ++section_idx) {
+    const auto &cur_section = sections[section_idx];
 
-      unsigned output_offset = ref_res->offset - saved_input_pos + saved_output_pos;
-      unsigned size = ref_res->id_bytes;
-      if (output_offset + size > output_pos || size > 8) {
-        ERR("Invalid resource reference: output_offset = %u, size = %u\n",
-            output_offset, size);
-        break;
-      }
+    while (cur_reference != references.end() &&
+           cur_reference->using_section < section_idx)
+      ++cur_reference;
+
+    if (state->skipped_sections[section_idx])
+      continue;
+
+    memcpy(&state->output[output_pos],
+           &state->input[cur_section.begin],
+           cur_section.size());
+
+    while (cur_reference != references.end() &&
+           cur_reference->using_section == section_idx) {
+      unsigned kind = cur_reference->reference.kind;
+      unsigned id = cur_reference->reference.id;
+      unsigned size = cur_reference->reference.id_bytes;
+
+      unsigned offset = cur_reference->reference.offset;
+      offset -= cur_section.begin - output_pos;
 
       uint64_t new_id = 0;
-      memcpy(&new_id, &state->output[output_offset], size);
-      for (unsigned i = 0; i < id; ++i)
-        if (state->skipped_sections[resources[kind][i]])
-          new_id -= 1;
-      memcpy(&state->output[output_offset], &new_id, size);
-      break;
+      memcpy(&new_id, &state->output[offset], size);
+      for (unsigned i = 0; i < id; ++i) {
+        unsigned def_section = state->current_journal.defining_section(kind, i);
+        if (def_section < num_sections && state->skipped_sections[def_section])
+          --new_id;
+      }
+      memcpy(&state->output[offset], &new_id, size);
+
+      ++cur_reference;
     }
-    default:
-      FATAL("Unknown type of log record: %u\n", (unsigned)header->type);
-    }
-  });
+
+    output_pos += cur_section.size();
+  }
+
   state->output_length = output_pos;
 }
 
 static void render_splice(struct mutator_state *state,
                           int num_prefix_sections,
                           uint8_t *add_buf, size_t add_buf_size) {
-  state->output_length = state->current_log.offsets[num_prefix_sections];
+  const auto &sections = state->current_journal.sections();
+  state->output_length = sections[num_prefix_sections].end;
 
   memcpy(state->output, state->input, state->output_length);
 
   if (!add_buf_size)
     return;
-  if (!load_log(state, &state->additional_log, add_buf, add_buf_size)) {
+  if (!state->additional_journal.load_journal(buffer_ref(add_buf, add_buf_size))) {
     memcpy(state->output, add_buf, add_buf_size);
     state->output_length = add_buf_size;
     state->record_log_next_action = mutator_state::RECORD_LOG_CAPTURE_LOG_AS_IS;
     return;
   }
-  if (!state->additional_log.num_offsets)
-    return;
+  const auto &other_sections = state->additional_journal.sections();
 
   unsigned additional_index = random() & 0xFFFF;
-  additional_index %= state->additional_log.num_offsets;
-  unsigned suffix_start = state->additional_log.offsets[additional_index];
+  additional_index %= other_sections.size();
+  unsigned suffix_start = other_sections[additional_index].begin;
   if (suffix_start >= add_buf_size)
     return;
 
-  unsigned suffix_length = add_buf_size - suffix_start;
-  if (state->output_length + suffix_length > MUTATOR_MAX_TEST_CASE_LENGTH)
-    suffix_length = MUTATOR_MAX_TEST_CASE_LENGTH - state->output_length;
+  unsigned suffix_length = std::min<unsigned>(
+      add_buf_size - suffix_start,
+      MUTATOR_MAX_TEST_CASE_LENGTH - state->output_length);
 
   memcpy(&state->output[state->output_length], &add_buf[suffix_start], suffix_length);
   state->output_length += suffix_length;
@@ -425,7 +335,7 @@ static bool save_log_from_shm(struct mutator_state *state,
   if (length == 0) {
     assert(test_case == NULL);
     // Don't compare the hash, just save what we got
-    memcpy(hash, state->log_shm.begin(), HASH_CHARS);
+    memcpy(hash, state->journal_shm.begin(), HASH_CHARS);
     hash[HASH_CHARS] = '\0';
     if (strspn(hash, "0123456789abcdef") != HASH_CHARS) {
       ERR("Unexpected characters in hash\n");
@@ -434,9 +344,9 @@ static bool save_log_from_shm(struct mutator_state *state,
   } else {
     kbdysch_compute_hash(hash, test_case, length);
     hash[HASH_CHARS] = '\0';
-    if (memcmp(state->log_shm.begin(), hash, HASH_CHARS)) {
+    if (memcmp(state->journal_shm.begin(), hash, HASH_CHARS)) {
       char real_hash[HASH_CHARS + 1];
-      memcpy(real_hash, state->log_shm.begin(), HASH_CHARS);
+      memcpy(real_hash, state->journal_shm.begin(), HASH_CHARS);
       real_hash[HASH_CHARS] = 0;
       ERR("Hash mismatch:  %s  (%s)\n", hash, description);
       ERR("         Real: [%s]\n", real_hash);
@@ -444,8 +354,8 @@ static bool save_log_from_shm(struct mutator_state *state,
     }
   }
 
-  buffer_ref log_contents(&state->log_shm.begin()[HASH_CHARS], MUTATOR_MAX_LOG_BYTES);
-  state->log_dir.write_file(hash, log_contents);
+  buffer_ref log_contents(&state->journal_shm.begin()[HASH_CHARS], MUTATOR_MAX_LOG_BYTES);
+  state->journal_dir.write_file(hash, log_contents);
 
   return true;
 }
@@ -467,7 +377,7 @@ uint32_t afl_custom_fuzz_count(void *data, const uint8_t *buf, size_t buf_size) 
   DEBUG_TRACE_FUNC;
 
   // Input is loaded by afl_custom_queue_get()
-  bool has_log = load_log(state, &state->current_log, state->input, state->input_length);
+  bool has_log = state->current_journal.load_journal(buffer_ref(state->input, state->input_length));
   state->current_mutation = 0;
 
   state->best_effort_mode = !has_log;
@@ -478,9 +388,10 @@ uint32_t afl_custom_fuzz_count(void *data, const uint8_t *buf, size_t buf_size) 
     return num_best_effort_iterations;
   }
 
+  const unsigned num_offsets = state->current_journal.sections().size() - 1;
   unsigned num_mutations = 0;
-  num_mutations += state->current_log.num_offsets;
-  num_mutations += state->current_log.num_offsets * num_splices;
+  num_mutations += num_offsets;
+  num_mutations += num_offsets * num_splices;
   return num_mutations;
 }
 
@@ -505,7 +416,7 @@ size_t afl_custom_fuzz(void *data, uint8_t *buf, size_t buf_size, uint8_t **out_
     if (!save_log_from_shm(state, state->input, state->input_length, "best effort mode"))
       abort();
     accumulate_important_data(state);
-    load_log(state, &state->current_log, state->input, state->input_length);
+    state->current_journal.load_journal(buffer_ref(state->input, state->input_length));
     state->record_log_next_action = mutator_state::RECORD_LOG_NONE;
   case mutator_state::RECORD_LOG_CAPTURE_LOG_AS_IS:
     ERR("Trying to save log as-is...\n");
@@ -516,10 +427,10 @@ size_t afl_custom_fuzz(void *data, uint8_t *buf, size_t buf_size, uint8_t **out_
     break;
   }
 
-  unsigned num_offsets = state->current_log.num_offsets;
+  unsigned num_offsets = state->current_journal.sections().size() - 1;
 
   if (state->best_effort_mode) {
-    unsigned index = state->current_mutation % num_offsets;
+    unsigned index = state->current_mutation % (num_offsets + 1);
     render_splice(state, index, add_buf, add_buf_size);
   } else if (state->current_mutation < num_offsets) {
     memset(state->skipped_sections, 0, sizeof(bool) * MUTATOR_MAX_OFFSETS);
