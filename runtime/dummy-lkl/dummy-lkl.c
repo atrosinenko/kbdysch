@@ -51,7 +51,12 @@ long lkl_umount_dev(unsigned disk_id, unsigned part, int flags,
   return 0;
 }
 
-int lkl_start_kernel(struct lkl_host_operations *lkl_ops, const char *cmd_line, ...) {
+int lkl_init(struct lkl_host_operations *lkl_ops) {
+  PRINT_MESSAGE("lkl_ops=%p\n", lkl_ops);
+  return 0;
+}
+
+int lkl_start_kernel(const char *cmd_line, ...) {
   PRINT_MESSAGE("cmd_line=%s", cmd_line);
   return 0;
 }

@@ -39,8 +39,8 @@ struct lkl_host_operations {
 };
 extern struct lkl_host_operations lkl_host_ops;
 
-int lkl_start_kernel(struct lkl_host_operations *lkl_ops,
-                     const char *cmd_line, ...);
+int lkl_init(struct lkl_host_operations *lkl_ops);
+int lkl_start_kernel(const char *cmd_line, ...);
 
 #ifdef __cplusplus
 }

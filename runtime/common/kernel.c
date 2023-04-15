@@ -379,7 +379,8 @@ void kernel_boot(struct fuzzer_state *state, const char *cmdline)
   add_all_disks(state);
   lkl_host_ops.print = my_printk;
   lkl_host_ops.panic = abort;
-  lkl_start_kernel(&lkl_host_ops, cmdline);
+  lkl_init(&lkl_host_ops);
+  lkl_start_kernel(cmdline);
   lkl_mount_fs("sysfs");
   lkl_mount_fs("proc");
   blockdev_init_after_boot(state);
