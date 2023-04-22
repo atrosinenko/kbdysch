@@ -8,6 +8,7 @@
 #include "afl-interface-decls.h"
 #include "helpers.h"
 #include "journal.h"
+#include "mutations.h"
 
 #include <array>
 #include <string>
@@ -74,9 +75,7 @@ struct mutator_state {
 
   bool best_effort_mode;
 
-  bool skipped_sections[MUTATOR_MAX_OFFSETS];
-
-  unsigned current_mutation;
+  std::vector<mutation_strategy *> strategies;
 };
 
 mutator_state::mutator_state()
@@ -215,12 +214,41 @@ static void print_variables(struct mutator_state *state) {
   }
 }
 
-// Section 0 is the beginning of file before the first SET_OFFSET
-static void render_dropped_section(struct mutator_state *state) {
+class section_dropper: public mutation_strategy {
+public:
+  void reset(mutator_state *state) override {
+    current_mutation = 0;
+    // 0-th section is never dropped
+    total_mutations = state->current_journal.sections().size() - 1;
+  }
+
+  unsigned remaining_mutation_count() const override {
+    return total_mutations - current_mutation;
+  }
+
+  void randomize(unsigned seed) override {
+    current_mutation = seed % total_mutations;
+  }
+
+  void render_next_mutation(mutator_state *state,
+                            uint8_t *add_buf, size_t add_buf_size) override;
+
+private:
+  std::vector<bool> skipped_sections;
+  unsigned current_mutation;
+  unsigned total_mutations;
+};
+
+void section_dropper::render_next_mutation(struct mutator_state *state,
+                                           uint8_t *add_buf, size_t add_buf_size) {
   const auto &sections = state->current_journal.sections();
   const auto &references = state->current_journal.resource_references();
   const unsigned num_sections = sections.size();
   unsigned output_pos = 0;
+
+  skipped_sections.assign(sections.size(), false);
+  skipped_sections[current_mutation + 1] = true;
+  ++current_mutation;
 
   for (const auto &ref : references) {
     if (ref.defining_section >= num_sections ||
@@ -229,8 +257,8 @@ static void render_dropped_section(struct mutator_state *state) {
           ref.defining_section, ref.using_section, num_sections);
       continue;
     }
-    if (state->skipped_sections[ref.defining_section])
-      state->skipped_sections[ref.using_section] = true;
+    if (skipped_sections[ref.defining_section])
+      skipped_sections[ref.using_section] = true;
   }
 
   auto cur_reference = references.begin();
@@ -241,7 +269,7 @@ static void render_dropped_section(struct mutator_state *state) {
            cur_reference->using_section < section_idx)
       ++cur_reference;
 
-    if (state->skipped_sections[section_idx])
+    if (skipped_sections[section_idx])
       continue;
 
     memcpy(&state->output[output_pos],
@@ -261,7 +289,7 @@ static void render_dropped_section(struct mutator_state *state) {
       memcpy(&new_id, &state->output[offset], size);
       for (unsigned i = 0; i < id; ++i) {
         unsigned def_section = state->current_journal.defining_section(kind, i);
-        if (def_section < num_sections && state->skipped_sections[def_section])
+        if (def_section < num_sections && skipped_sections[def_section])
           --new_id;
       }
       memcpy(&state->output[offset], &new_id, size);
@@ -275,12 +303,36 @@ static void render_dropped_section(struct mutator_state *state) {
   state->output_length = output_pos;
 }
 
-static void render_splice(struct mutator_state *state,
-                          int num_prefix_sections,
-                          uint8_t *add_buf, size_t add_buf_size) {
-  const auto &sections = state->current_journal.sections();
-  state->output_length = sections[num_prefix_sections].end;
+class test_case_splicer: public mutation_strategy {
+public:
+  void reset(mutator_state *state) override {
+    current_mutation = 0;
+    num_sections = state->current_journal.sections().size();
+  }
 
+  unsigned remaining_mutation_count() const override {
+    return num_sections * num_splices - current_mutation;
+  }
+
+  void randomize(unsigned seed) override {
+    current_mutation = seed % (num_sections * num_splices);
+  }
+
+  void render_next_mutation(struct mutator_state *state,
+                            uint8_t *add_buf, size_t add_buf_size) override;
+
+private:
+  unsigned current_mutation;
+  unsigned num_sections;
+};
+
+void test_case_splicer::render_next_mutation(struct mutator_state *state,
+                                             uint8_t *add_buf, size_t add_buf_size) {
+  const auto &sections = state->current_journal.sections();
+  unsigned num_prefix_sections = current_mutation % num_splices;
+  ++current_mutation;
+
+  state->output_length = sections[num_prefix_sections].end;
   memcpy(state->output, state->input, state->output_length);
 
   if (!add_buf_size)
@@ -296,9 +348,6 @@ static void render_splice(struct mutator_state *state,
   unsigned additional_index = random() & 0xFFFF;
   additional_index %= other_sections.size();
   unsigned suffix_start = other_sections[additional_index].begin;
-  if (suffix_start >= add_buf_size)
-    return;
-
   unsigned suffix_length = std::min<unsigned>(
       add_buf_size - suffix_start,
       MUTATOR_MAX_TEST_CASE_LENGTH - state->output_length);
@@ -361,6 +410,9 @@ void *afl_custom_init(/*afl_state_t*/ void *afl_, unsigned int seed_) {
 
   mutator_state *state = new mutator_state();
 
+  state->strategies.push_back(new section_dropper());
+  state->strategies.push_back(new test_case_splicer());
+
   return state;
 }
 
@@ -370,7 +422,6 @@ uint32_t afl_custom_fuzz_count(void *data, const uint8_t *buf, size_t buf_size) 
 
   // Input is loaded by afl_custom_queue_get()
   bool has_log = state->current_journal.load_journal(buffer_ref(state->input, state->input_length));
-  state->current_mutation = 0;
 
   state->best_effort_mode = !has_log;
   state->record_log_next_action = has_log ? mutator_state::RECORD_LOG_NONE : mutator_state::RECORD_LOG_PREPARE_INPUT;
@@ -380,10 +431,11 @@ uint32_t afl_custom_fuzz_count(void *data, const uint8_t *buf, size_t buf_size) 
     return num_best_effort_iterations;
   }
 
-  const unsigned num_offsets = state->current_journal.sections().size() - 1;
   unsigned num_mutations = 0;
-  num_mutations += num_offsets;
-  num_mutations += num_offsets * num_splices;
+  for (auto *strategy : state->strategies) {
+    strategy->reset(state);
+    num_mutations += strategy->remaining_mutation_count();
+  }
   return num_mutations;
 }
 
@@ -399,7 +451,6 @@ size_t afl_custom_fuzz(void *data, uint8_t *buf, size_t buf_size, uint8_t **out_
     ERR("Requesting log...\n");
     if (state->input_length != buf_size || memcmp(state->input, buf, state->input_length))
       ERR("Unexpected buf and buf_size=%zu\n", buf_size);
-    ++state->current_mutation;
     state->record_log_next_action = mutator_state::RECORD_LOG_CAPTURE_LOG;
     *out_buf = buf;
     return buf_size;
@@ -419,22 +470,20 @@ size_t afl_custom_fuzz(void *data, uint8_t *buf, size_t buf_size, uint8_t **out_
     break;
   }
 
-  unsigned num_offsets = state->current_journal.sections().size() - 1;
-
   if (state->best_effort_mode) {
-    unsigned index = state->current_mutation % (num_offsets + 1);
-    render_splice(state, index, add_buf, add_buf_size);
-  } else if (state->current_mutation < num_offsets) {
-    memset(state->skipped_sections, 0, sizeof(bool) * MUTATOR_MAX_OFFSETS);
-    state->skipped_sections[1 + state->current_mutation] = true;
-    render_dropped_section(state);
+    unsigned index = random() % state->strategies.size();
+    mutation_strategy *strategy = state->strategies[index];
+    strategy->reset(state);
+    strategy->randomize(random());
+    strategy->render_next_mutation(state, add_buf, add_buf_size);
   } else {
-    unsigned index = state->current_mutation - num_offsets;
-    index /= num_splices;
-    assert(index < num_offsets);
-    render_splice(state, 1 + index, add_buf, add_buf_size);
+    for (auto strategy : state->strategies) {
+      if (!strategy->remaining_mutation_count())
+        continue;
+      strategy->render_next_mutation(state, add_buf, add_buf_size);
+      break;
+    }
   }
-  ++state->current_mutation;
   *out_buf = state->output;
   return state->output_length;
 }
