@@ -44,14 +44,6 @@ struct mutator_variable_desc {
   bool fill_from_dereferenceable_shm(uint8_t *ptr);
 };
 
-struct harness_log {
-  std::array<uint8_t, MUTATOR_MAX_LOG_BYTES> raw_log;
-
-  // For convenience, offsets[num_offsets] == input_length
-  unsigned offsets[MUTATOR_MAX_OFFSETS + 1];
-  unsigned num_offsets;
-};
-
 struct mutator_state {
   mutator_state();
 
