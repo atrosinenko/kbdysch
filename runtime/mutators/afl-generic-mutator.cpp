@@ -57,11 +57,8 @@ struct mutator_state {
   std::vector<mutator_variable_desc> variables;
   bool vars_shm_parsed;
 
-  uint8_t input[MUTATOR_MAX_TEST_CASE_LENGTH];
-  unsigned input_length;
-
-  uint8_t output[MUTATOR_MAX_TEST_CASE_LENGTH];
-  unsigned output_length;
+  array_buffer<MUTATOR_MAX_TEST_CASE_LENGTH> input;
+  array_buffer<MUTATOR_MAX_TEST_CASE_LENGTH> output;
 
   journal_data current_journal;
   journal_data additional_journal;
@@ -244,7 +241,6 @@ void section_dropper::render_next_mutation(struct mutator_state *state,
   const auto &sections = state->current_journal.sections();
   const auto &references = state->current_journal.resource_references();
   const unsigned num_sections = sections.size();
-  unsigned output_pos = 0;
 
   skipped_sections.assign(sections.size(), false);
   skipped_sections[current_mutation + 1] = true;
@@ -272,9 +268,9 @@ void section_dropper::render_next_mutation(struct mutator_state *state,
     if (skipped_sections[section_idx])
       continue;
 
-    memcpy(&state->output[output_pos],
-           &state->input[cur_section.begin],
-           cur_section.size());
+    unsigned output_section_offset = state->output.size();
+    state->output.memcpy_back(state->input.subbuf(
+        cur_section.begin, cur_section.size()));
 
     while (cur_reference != references.end() &&
            cur_reference->using_section == section_idx) {
@@ -283,24 +279,21 @@ void section_dropper::render_next_mutation(struct mutator_state *state,
       unsigned size = cur_reference->reference.id_bytes;
 
       unsigned offset = cur_reference->reference.offset;
-      offset -= cur_section.begin - output_pos;
+      offset -= cur_section.begin - output_section_offset;
 
+      uint8_t *patched_id = &state->output.bytes()[offset];
       uint64_t new_id = 0;
-      memcpy(&new_id, &state->output[offset], size);
+      memcpy(&new_id, patched_id, size);
       for (unsigned i = 0; i < id; ++i) {
         unsigned def_section = state->current_journal.defining_section(kind, i);
         if (def_section < num_sections && skipped_sections[def_section])
           --new_id;
       }
-      memcpy(&state->output[offset], &new_id, size);
+      memcpy(patched_id, &new_id, size);
 
       ++cur_reference;
     }
-
-    output_pos += cur_section.size();
   }
-
-  state->output_length = output_pos;
 }
 
 class test_case_splicer: public mutation_strategy {
@@ -332,14 +325,13 @@ void test_case_splicer::render_next_mutation(struct mutator_state *state,
   unsigned num_prefix_sections = current_mutation % num_splices;
   ++current_mutation;
 
-  state->output_length = sections[num_prefix_sections].end;
-  memcpy(state->output, state->input, state->output_length);
+  state->output.memcpy_back(state->input.subbuf(0, sections[num_prefix_sections].end));
 
   if (!add_buf_size)
     return;
   if (!state->additional_journal.load_journal(buffer_ref(add_buf, add_buf_size))) {
-    memcpy(state->output, add_buf, add_buf_size);
-    state->output_length = add_buf_size;
+    state->output.resize(0);
+    state->output.memcpy_back(buffer_ref(add_buf, add_buf_size));
     state->record_log_next_action = mutator_state::RECORD_LOG_CAPTURE_LOG_AS_IS;
     return;
   }
@@ -350,18 +342,17 @@ void test_case_splicer::render_next_mutation(struct mutator_state *state,
   unsigned suffix_start = other_sections[additional_index].begin;
   unsigned suffix_length = std::min<unsigned>(
       add_buf_size - suffix_start,
-      MUTATOR_MAX_TEST_CASE_LENGTH - state->output_length);
+      MUTATOR_MAX_TEST_CASE_LENGTH - state->output.size());
 
-  memcpy(&state->output[state->output_length], &add_buf[suffix_start], suffix_length);
-  state->output_length += suffix_length;
+  state->output.memcpy_back(buffer_ref(&add_buf[suffix_start], suffix_length));
 }
 
-static size_t read_file(const char *file_name, uint8_t *buffer, size_t max_size) {
+static size_t read_file(const char *file_name, buffer_ref buffer) {
   int fd = open(file_name, O_RDONLY);
   if (fd < 0)
     FATAL("Cannot file %s\n", file_name);
 
-  int length = read(fd, buffer, max_size);
+  int length = read(fd, buffer.bytes(), buffer.size());
   if (length <= 0)
     FATAL("read() returned %d\n", length);
   close(fd);
@@ -370,11 +361,11 @@ static size_t read_file(const char *file_name, uint8_t *buffer, size_t max_size)
 }
 
 static bool save_log_from_shm(struct mutator_state *state,
-                              uint8_t *test_case, size_t length,
+                              buffer_ref test_case,
                               const char *description) {
   char hash[HASH_CHARS + 1];
-  if (length == 0) {
-    assert(test_case == NULL);
+  if (test_case.size() == 0) {
+    assert(test_case.bytes() == NULL);
     // Don't compare the hash, just save what we got
     memcpy(hash, state->journal_shm.begin(), HASH_CHARS);
     hash[HASH_CHARS] = '\0';
@@ -383,7 +374,7 @@ static bool save_log_from_shm(struct mutator_state *state,
       return false;
     }
   } else {
-    kbdysch_compute_hash(hash, test_case, length);
+    kbdysch_compute_hash(hash, test_case.bytes(), test_case.size());
     hash[HASH_CHARS] = '\0';
     if (memcmp(state->journal_shm.begin(), hash, HASH_CHARS)) {
       char real_hash[HASH_CHARS + 1];
@@ -421,7 +412,7 @@ uint32_t afl_custom_fuzz_count(void *data, const uint8_t *buf, size_t buf_size) 
   DEBUG_TRACE_FUNC;
 
   // Input is loaded by afl_custom_queue_get()
-  bool has_log = state->current_journal.load_journal(buffer_ref(state->input, state->input_length));
+  bool has_log = state->current_journal.load_journal(state->input.as_data());
 
   state->best_effort_mode = !has_log;
   state->record_log_next_action = has_log ? mutator_state::RECORD_LOG_NONE : mutator_state::RECORD_LOG_PREPARE_INPUT;
@@ -449,27 +440,28 @@ size_t afl_custom_fuzz(void *data, uint8_t *buf, size_t buf_size, uint8_t **out_
     break;
   case mutator_state::RECORD_LOG_PREPARE_INPUT:
     ERR("Requesting log...\n");
-    if (state->input_length != buf_size || memcmp(state->input, buf, state->input_length))
+    if (state->input.size() != buf_size || memcmp(state->input.bytes(), buf, state->input.size()))
       ERR("Unexpected buf and buf_size=%zu\n", buf_size);
     state->record_log_next_action = mutator_state::RECORD_LOG_CAPTURE_LOG;
     *out_buf = buf;
     return buf_size;
   case mutator_state::RECORD_LOG_CAPTURE_LOG:
     ERR("Trying to save log...\n");
-    if (!save_log_from_shm(state, state->input, state->input_length, "best effort mode"))
+    if (!save_log_from_shm(state, state->input.as_data(), "best effort mode"))
       abort();
     accumulate_important_data(state);
-    state->current_journal.load_journal(buffer_ref(state->input, state->input_length));
+    state->current_journal.load_journal(state->input.as_data());
     state->record_log_next_action = mutator_state::RECORD_LOG_NONE;
   case mutator_state::RECORD_LOG_CAPTURE_LOG_AS_IS:
     ERR("Trying to save log as-is...\n");
-    if (!save_log_from_shm(state, NULL, 0, "best effort mode"))
+    if (!save_log_from_shm(state, buffer_ref(), "best effort mode"))
       abort();
     accumulate_important_data(state);
     state->record_log_next_action = mutator_state::RECORD_LOG_NONE;
     break;
   }
 
+  state->output.resize(0);
   if (state->best_effort_mode) {
     unsigned index = random() % state->strategies.size();
     mutation_strategy *strategy = state->strategies[index];
@@ -484,8 +476,8 @@ size_t afl_custom_fuzz(void *data, uint8_t *buf, size_t buf_size, uint8_t **out_
       break;
     }
   }
-  *out_buf = state->output;
-  return state->output_length;
+  *out_buf = state->output.bytes();
+  return state->output.size();
 }
 
 uint8_t afl_custom_queue_get(void *data, const char *filename) {
@@ -494,8 +486,7 @@ uint8_t afl_custom_queue_get(void *data, const char *filename) {
 
   parse_variables_area(state);
 
-  state->input_length = read_file(filename, state->input,
-                                  MUTATOR_MAX_TEST_CASE_LENGTH);
+  state->input.resize(read_file(filename, state->input.as_storage()));
 
   return 1;
 }
@@ -507,11 +498,10 @@ uint8_t afl_custom_queue_new_entry(void *data, const char *filename_new_queue,
 
   // Save log data for later use
 
-  static uint8_t test_case[MUTATOR_MAX_TEST_CASE_LENGTH];
-  int length = read_file(filename_new_queue, test_case,
-                         MUTATOR_MAX_TEST_CASE_LENGTH);
+  static array_buffer<MUTATOR_MAX_TEST_CASE_LENGTH> test_case;
+  test_case.resize(read_file(filename_new_queue, test_case.as_storage()));
 
-  bool log_saved = save_log_from_shm(state, test_case, length, filename_new_queue);
+  bool log_saved = save_log_from_shm(state, test_case.as_data(), filename_new_queue);
   if (!log_saved && !strstr(filename_new_queue, ",orig:"))
     FATAL("Unexpected hash: %s\n", filename_new_queue);
   // Do not initialize too early

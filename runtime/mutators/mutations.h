@@ -17,7 +17,6 @@ public:
 
   virtual void randomize(unsigned seed) = 0;
 
-  /// Put the next mutated test case into (output, output_length) fields.
   virtual void render_next_mutation(mutator_state *state,
                                     uint8_t *add_buf, size_t add_buf_size) = 0;
 

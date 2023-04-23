@@ -61,8 +61,64 @@ public:
     return in_mem_area_bounds(Ptr, Size, other_ptr, requested_size);
   }
 
+  buffer_ref subbuf(size_t offset, size_t sub_size) {
+    return buffer_ref(&Ptr[offset], sub_size);
+  }
+  const buffer_ref subbuf(size_t offset, size_t sub_size) const {
+    return buffer_ref(&Ptr[offset], sub_size);
+  }
+
 private:
   uint8_t *Ptr;
+  size_t Size;
+};
+
+// Array-backed buffer that has a statically-set maximum capacity but
+// its logical size can vary from 0 to MaxSize
+template <size_t MaxSize>
+class array_buffer {
+public:
+  array_buffer()
+      : Size(0) {}
+
+  buffer_ref as_storage() {
+    return buffer_ref(Storage);
+  }
+  const buffer_ref as_storage() const {
+    return buffer_ref(Storage);
+  }
+
+  buffer_ref as_data() {
+    return buffer_ref(Storage).subbuf(0, Size);
+  }
+  const buffer_ref as_data() const {
+    return buffer_ref(Storage).subbuf(0, Size);
+  }
+
+  uint8_t *bytes() { return Storage.data(); }
+  const uint8_t *bytes() const { return Storage.data(); }
+
+  size_t size() const { return Size; }
+  size_t capacity() const { return Storage.size(); }
+
+  void resize(size_t new_size) {
+    Size = new_size;
+  }
+
+  void memcpy_back(buffer_ref buffer) {
+    memcpy(&Storage[Size], buffer.bytes(), buffer.size());
+    Size += buffer.size();
+  }
+
+  buffer_ref subbuf(size_t offset, size_t sub_size) {
+    return buffer_ref(Storage).subbuf(offset, sub_size);
+  }
+  const buffer_ref subbuf(size_t offset, size_t sub_size) const {
+    return buffer_ref(Storage).subbuf(offset, sub_size);
+  }
+
+private:
+  std::array<uint8_t, MaxSize> Storage;
   size_t Size;
 };
 
