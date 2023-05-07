@@ -45,6 +45,8 @@ private:
   bool NeedsAddBuf;
 };
 
+void populate_mutation_strategies(std::vector<mutation_strategy *> &strategies);
+
 } // namespace mutator
 } // namespace kbdysch
 
