@@ -159,3 +159,10 @@ void mutator_ref_resource(unsigned kind, unsigned id, unsigned id_bytes, unsigne
   payload->id_bytes = id_bytes;
   payload->offset = offset;
 }
+
+void mutator_propose_change(unsigned offset, uint64_t replacement, unsigned size) {
+  ALLOC_LOG_PAYLOAD(MUTATOR_LOG_PROPOSE_CHANGE, struct mutator_log_propose_change);
+  payload->offset = offset;
+  payload->size = size;
+  payload->replacement = replacement;
+}

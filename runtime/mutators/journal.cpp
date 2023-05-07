@@ -48,6 +48,7 @@ bool journal_data::parse_journal(unsigned input_bytes) {
   memset(&DefiningSections, -1, sizeof(DefiningSections));
   Sections.clear();
   References.clear();
+  Proposals.clear();
 
   unsigned current_section = 0;
   unsigned current_section_begin = 0;
@@ -98,6 +99,18 @@ bool journal_data::parse_journal(unsigned input_bytes) {
       }
       References.push_back({*ref_res, current_section,
                             DefiningSections[kind][id]});
+      break;
+    }
+    case MUTATOR_LOG_PROPOSE_CHANGE: {
+      DECL_WITH_TYPE(struct mutator_log_propose_change, proposal, payload);
+      unsigned offset = proposal->offset;
+      unsigned size = proposal->size;
+      if (size > 8 || offset + size > input_bytes) {
+        ERR("Section %u: unexpected proposal: offset = %u, size = %u.\n",
+            current_section, offset, size);
+        break;
+      }
+      Proposals.push_back(*proposal);
       break;
     }
     default:

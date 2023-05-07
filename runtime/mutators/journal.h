@@ -46,6 +46,10 @@ public:
     return DefiningSections[kind][id];
   }
 
+  const std::vector<mutator_log_propose_change> &proposals() const {
+    return Proposals;
+  }
+
 private:
   bool read_journal_from_disk(const buffer_ref input_data);
   bool parse_journal(unsigned input_bytes);
@@ -61,6 +65,7 @@ private:
   // Sizes are implicitly bound by maximum journal size
   std::vector<section_bounds> Sections;
   std::vector<resource_reference> References;
+  std::vector<mutator_log_propose_change> Proposals;
 };
 
 } // namespace mutator

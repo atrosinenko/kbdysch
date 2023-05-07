@@ -48,6 +48,20 @@ int main(int argc, const char *argv[]) {
         //    ^
         mutator_ref_resource(kind, id, 1, offset + 3);
         break;
+      case 'P': { // [P]ropose change
+        // %P<N><M><Bytes> - ask to copy Bytes (of length N) at M bytes larger offset
+        // %P24ABCDEFGH -> %P24ABCDABGH
+        //     ^^  ^^
+        //     --->|
+        const unsigned num_skipped_bytes = 4;
+        unsigned size  = from_decimal_digit(res_get_u8(state));
+        unsigned shift = from_decimal_digit(res_get_u8(state));
+        unsigned new_offset = offset + num_skipped_bytes + shift;
+        uint64_t payload;
+        res_copy_bytes(state, &payload, size);
+        mutator_propose_change(new_offset, payload, size);
+        break;
+      }
       default:
         fprintf(stderr, "Unknown tag: '%c'.\n", ch);
         abort();

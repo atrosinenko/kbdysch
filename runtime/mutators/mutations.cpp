@@ -146,9 +146,49 @@ void test_case_splicer::render_next_mutation(
   output.memcpy_back(add_buf.subbuf(suffix_start, suffix_length));
 }
 
+class proposal_applier : public mutation_strategy {
+public:
+  proposal_applier()
+      : mutation_strategy(false) {}
+
+  void reset(buffer_ref input, journal_data &input_journal) override {
+    current_mutation = 0;
+    num_proposals = input_journal.proposals().size();
+  }
+
+  unsigned remaining_mutation_count() const override {
+    return num_proposals - current_mutation;
+  }
+
+  void randomize(unsigned seed) override {
+    current_mutation = seed % num_proposals;
+  }
+
+  void render_next_mutation(test_case_storage &output,
+                            buffer_ref input, journal_data &input_journal) override;
+
+private:
+  unsigned current_mutation;
+  unsigned num_proposals;
+};
+
+void proposal_applier::render_next_mutation(
+    test_case_storage &output,
+    buffer_ref input, journal_data &input_journal) {
+  const auto &proposal = input_journal.proposals()[current_mutation++];
+
+  unsigned offset = proposal.offset;
+  unsigned size = proposal.size;
+
+  output.memcpy_back(input);
+  uint8_t *patched_data = &output.bytes()[offset];
+  memcpy(patched_data, &proposal.replacement, size);
+}
+
 void populate_mutation_strategies(std::vector<mutation_strategy *> &strategies) {
   strategies.push_back(new section_dropper());
   strategies.push_back(new test_case_splicer());
+  strategies.push_back(new proposal_applier());
 }
 
 } // namespace mutator

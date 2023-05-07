@@ -61,6 +61,7 @@ enum mutator_opcode {
   MUTATOR_LOG_SET_OFFSET,
   MUTATOR_LOG_NEW_RES,
   MUTATOR_LOG_REF_RES,
+  MUTATOR_LOG_PROPOSE_CHANGE,
 };
 
 enum mutator_resource_kind {
@@ -102,6 +103,11 @@ struct mutator_log_ref_resource {
   uint8_t id_bytes;
   uint8_t id;
   uint32_t offset;
+};
+struct mutator_log_propose_change {
+  uint32_t offset;
+  uint32_t size; // from 1 to 8 bytes
+  uint64_t replacement;
 };
 #pragma pack(pop)
 

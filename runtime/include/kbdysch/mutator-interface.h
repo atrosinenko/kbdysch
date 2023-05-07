@@ -24,6 +24,7 @@ void mutator_write_trim_offset(unsigned offset);
 
 void mutator_open_resource(unsigned kind, unsigned id);
 void mutator_ref_resource(unsigned kind, unsigned id, unsigned id_bytes, unsigned offset);
+void mutator_propose_change(unsigned offset, uint64_t replacement, unsigned size);
 
 #define DEBUG_COUNTERS(var_name, description, max_counters) \
   debug_variable *var_name; \
