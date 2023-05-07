@@ -325,9 +325,19 @@ size_t afl_custom_fuzz(void *data, uint8_t *buf, size_t buf_size, uint8_t **out_
   state->output.resize(0);
   mutation_strategy *strategy = nullptr;
   if (state->best_effort_mode) {
-    unsigned index = random() % state->strategies.size();
-    strategy = state->strategies[index];
-    strategy->reset(state->input.as_data(), state->current_journal);
+    unsigned num_strategies = state->strategies.size();
+    unsigned first_index = random() % num_strategies;
+
+    for (unsigned i = 0; i < num_strategies; ++i) {
+      auto s = state->strategies[(first_index + i) % num_strategies];
+      s->reset(state->input.as_data(), state->current_journal);
+      if (s->remaining_mutation_count()) {
+        strategy = s;
+        break;
+      }
+    }
+
+    assert(strategy != NULL);
     strategy->randomize(random());
   } else {
     for (auto s : state->strategies) {
