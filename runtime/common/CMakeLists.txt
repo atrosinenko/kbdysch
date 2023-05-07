@@ -25,6 +25,9 @@ else()
     add_library(common_no_lkl ALIAS common_lib)
 endif()
 
+add_executable(kbdysch-hash kbdysch-hash.c)
+target_link_libraries(kbdysch-hash common_no_lkl)
+
 if (FAKE_TIME)
   add_library(fake_time OBJECT fake_time.c)
 endif()
