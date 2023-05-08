@@ -410,6 +410,9 @@ void afl_custom_deinit(void *data) {
   parse_variables_area(state);
   print_variables(state);
 
+  for (auto s : state->strategies)
+    delete s;
+
   delete state;
 
   deinit_error_logging();

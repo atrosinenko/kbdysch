@@ -131,7 +131,7 @@ void test_case_splicer::render_next_mutation(
     buffer_ref add_buf, journal_data &add_journal) {
   const auto &sections = input_journal.sections();
   const auto &other_sections = add_journal.sections();
-  unsigned num_prefix_sections = current_mutation % num_splices;
+  unsigned num_prefix_sections = current_mutation / num_splices;
   unsigned prefix_length = sections[num_prefix_sections].end;
   ++current_mutation;
 
