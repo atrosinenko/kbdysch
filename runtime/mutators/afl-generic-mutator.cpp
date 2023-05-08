@@ -9,6 +9,7 @@
 #include "helpers.h"
 #include "journal.h"
 #include "mutations.h"
+#include "variables.h"
 
 #include <array>
 #include <string>
@@ -31,19 +32,6 @@ DECLARE_INT_KNOB_DEF(num_best_effort_iterations,
 
 using namespace kbdysch::mutator;
 
-struct mutator_variable_desc {
-  unsigned type;
-  mutator_num_elements_t *num_elements;
-  unsigned bytes_per_element, max_elements;
-  std::string name;
-  // Pointer to the original data in SHM
-  void *data;
-  // Pointer to the storage for data accumulated only for queue entries
-  void *important_data;
-
-  bool fill_from_dereferenceable_shm(uint8_t *ptr);
-};
-
 struct mutator_state {
   mutator_state();
 
@@ -53,7 +41,7 @@ struct mutator_state {
   temp_dir journal_dir;
 
   // Variables area (parsed once per fuzzing session)
-  std::vector<mutator_variable_desc> variables;
+  std::vector<variable *> variables;
   bool vars_shm_parsed;
 
   array_buffer<MUTATOR_MAX_TEST_CASE_LENGTH> input;
@@ -81,132 +69,31 @@ mutator_state::mutator_state()
       current_journal(journal_dir), additional_journal(journal_dir) {
 }
 
-bool mutator_variable_desc::fill_from_dereferenceable_shm(uint8_t *ptr) {
-  DECL_WITH_TYPE(struct mutator_var_header, header, ptr);
-
-  type = header->type;
-  num_elements = &header->num_elements_real;
-  bytes_per_element = (unsigned)header->bytes_per_element;
-  max_elements = (unsigned)header->max_num_elements;
-
-  unsigned name_bytes = header->name_bytes; // Prevent sign-extension
-  name.assign((char *)&ptr[sizeof(*header)], name_bytes);
-
-  data = &ptr[sizeof(*header) + name_bytes];
-  DEBUG("  type = %d, size = %d x %d, name = %s\n",
-        type, bytes_per_element, max_elements, name);
-
-  switch (type) {
-  case MUTATOR_VAR_COUNTERS:
-    if (bytes_per_element != 8) {
-      DEBUG("Counter %s: unexpected bytes_per_element = %d.\n",
-            name, (int)bytes_per_element);
-      return false;
-    }
-    important_data = calloc(max_elements, bytes_per_element);
-    break;
-  case MUTATOR_VAR_STRINGS:
-    break;
-  case MUTATOR_VAR_STOP:
-    return false;
-  default:
-    DEBUG("Unknown var record type: 0x%x\n", (int)type);
-    return false;
-  }
-  return true;
-}
-
 static void parse_variables_area(struct mutator_state *state) {
   if (state->vars_shm_parsed)
     return;
   state->vars_shm_parsed = true;
 
-  shm_segment *shm = &state->variables_shm;
-  uint8_t *current_ptr = shm->begin();
-  for (int current_var = 0; ; ++current_var) {
-    DEBUG("Parsing variable #%d...\n", current_var);
+  uint8_t *shm_ptr = state->variables_shm.begin();
+  buffer_ref main_area(shm_ptr,
+                       MUTATOR_SHM_VARS_BYTES);
+  buffer_ref aux_area(shm_ptr + MUTATOR_SHM_VARS_BYTES,
+                      MUTATOR_SHM_VARS_BYTES);
 
-    // Check input description is in bounds
-    size_t total_bytes = sizeof(struct mutator_var_header);
-    if (!shm->in_bounds(current_ptr, total_bytes))
-      return;
-    DECL_WITH_TYPE(struct mutator_var_header, header, current_ptr);
-    total_bytes += (unsigned)header->name_bytes;
-    total_bytes += (unsigned)header->bytes_per_element * (unsigned)header->max_num_elements;
-    if (!shm->in_bounds(current_ptr, total_bytes))
-      return;
-
-    mutator_variable_desc desc;
-    if (!desc.fill_from_dereferenceable_shm(current_ptr))
-      return;
-    state->variables.push_back(desc);
-    current_ptr += total_bytes;
+  uint8_t *cur_ptr = shm_ptr;
+  while (variable::create_from_shm(state->variables, main_area, aux_area, &cur_ptr)) {
   }
 }
 
 static void accumulate_important_data(struct mutator_state *state) {
   parse_variables_area(state);
-  for (int current_var = 0; current_var < state->variables.size(); ++current_var) {
-    struct mutator_variable_desc *v = &state->variables[current_var];
-    switch (v->type) {
-    case MUTATOR_VAR_COUNTERS: {
-      mutator_u64_var_t *accumulated = (mutator_u64_var_t *)v->important_data;
-      mutator_u64_var_t *current     = (mutator_u64_var_t *)MUTATOR_SHM_VAR_IN_CURRENT_AREA(v->data);
-      for (unsigned i = 0; i < v->max_elements; ++i)
-        accumulated[i] += current[i];
-      break;
-    }
-    default:
-      break;
-    }
-  }
-}
-
-static void print_scalar_variable(struct mutator_variable_desc *desc, int index) {
-  switch (desc->type) {
-  case MUTATOR_VAR_COUNTERS: {
-    mutator_u64_var_t *counters = (mutator_u64_var_t *)desc->data;
-    mutator_u64_var_t *important = (mutator_u64_var_t *)desc->important_data;
-    printf("%lu\t%lu", (unsigned long)important[index], (unsigned long)counters[index]);
-    break;
-  }
-  case MUTATOR_VAR_STRINGS: {
-    char *strings = (char *)desc->data;
-    char *str = &strings[index * desc->bytes_per_element];
-    char *str_end = &str[desc->bytes_per_element];
-    char tmp = *str_end;
-    *str_end = '\0';
-    printf("'%s'", str);
-    *str_end = tmp;
-    break;
-  }
-  default:
-    printf("<UNKNOWN TYPE>");
-    break;
-  }
+  for (auto variable : state->variables)
+    variable->accumulate();
 }
 
 static void print_variables(struct mutator_state *state) {
   for (int current_var = 0; current_var < state->variables.size(); ++current_var) {
-    struct mutator_variable_desc *desc = &state->variables[current_var];
-    unsigned num_elements = *desc->num_elements;
-    if (num_elements > desc->max_elements) {
-      printf("!!! Too many elements: %u, using only the first %u ones.\n",
-             num_elements, desc->max_elements);
-      num_elements = desc->max_elements;
-    }
-    if (num_elements == 1) {
-      printf("Variable #%u:\t", current_var);
-      print_scalar_variable(desc, 0);
-      printf("\t - %s\n", desc->name.c_str());
-    } else {
-      printf("Variable #%u: %s\n", current_var, desc->name.c_str());
-      for (unsigned i = 0; i < num_elements; ++i) {
-        printf("- [%u] = ", i);
-        print_scalar_variable(desc, i);
-        printf("\n");
-      }
-    }
+    state->variables[current_var]->print(stdout, current_var);
   }
 }
 
@@ -412,6 +299,9 @@ void afl_custom_deinit(void *data) {
 
   for (auto s : state->strategies)
     delete s;
+
+  for (auto v : state->variables)
+    delete v;
 
   delete state;
 

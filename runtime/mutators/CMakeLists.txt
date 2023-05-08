@@ -5,6 +5,7 @@ add_library(afl-generic-mutator SHARED
   helpers.cpp
   journal.cpp
   mutations.cpp
+  variables.cpp
   ../common/hashing.c
   ../common/options.c
 )
