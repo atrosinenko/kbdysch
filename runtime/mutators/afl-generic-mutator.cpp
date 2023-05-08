@@ -60,6 +60,8 @@ struct mutator_state {
   bool best_effort_mode;
 
   std::vector<mutation_strategy *> strategies;
+
+  ~mutator_state();
 };
 
 mutator_state::mutator_state()
@@ -67,6 +69,14 @@ mutator_state::mutator_state()
       journal_shm(MUTATOR_SHM_LOG_ENV_NAME, MUTATOR_SHM_LOG_BYTES, MUTATOR_SHM_LOG_BYTES),
       journal_dir("/tmp/afl-mutator-XXXXXX"),
       current_journal(journal_dir), additional_journal(journal_dir) {
+  populate_mutation_strategies(strategies);
+}
+
+mutator_state::~mutator_state() {
+  for (auto s : strategies)
+    delete s;
+  for (auto v : variables)
+    delete v;
 }
 
 static void parse_variables_area(struct mutator_state *state) {
@@ -142,17 +152,10 @@ static bool save_log_from_shm(struct mutator_state *state,
   return true;
 }
 
-void *afl_custom_init(/*afl_state_t*/ void *afl_, unsigned int seed_) {
+void *afl_custom_init(/*afl_state_t*/ void *, unsigned int /*seed*/) {
   DEBUG_TRACE_FUNC;
-  (void) afl_;
-  (void) seed_;
-
   init_error_logging();
-
-  mutator_state *state = new mutator_state();
-  populate_mutation_strategies(state->strategies);
-
-  return state;
+  return new mutator_state();
 }
 
 uint32_t afl_custom_fuzz_count(void *data, const uint8_t *buf, size_t buf_size) {
@@ -296,12 +299,6 @@ void afl_custom_deinit(void *data) {
 
   parse_variables_area(state);
   print_variables(state);
-
-  for (auto s : state->strategies)
-    delete s;
-
-  for (auto v : state->variables)
-    delete v;
 
   delete state;
 
