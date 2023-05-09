@@ -48,6 +48,8 @@ const uint8_t *res_get_data_ptr(struct fuzzer_state *state) {
 }
 
 void res_mark_section_start(struct fuzzer_state *state) {
+  if (state->current_state.offset >= state->constant_state.length)
+    stop_processing(state);
   mutator_write_trim_offset(res_get_cur_offset(state));
 }
 
