@@ -10,12 +10,15 @@ object InvokerConstants {
     "",
   )
 
-  val InvokerHeader = Seq(
+  def InvokerHeader = Seq(
     "#include \"kbdysch/kbdysch.h\"",
     "#include \"kbdysch/invoker-utils.h\"",
+    "#include \"kbdysch/mutator-interface.h\"",
     "#include \"kbdysch/api_defs.h\"",
     "",
     "#include <syscall.h>",
+    "",
+    s"static struct success_rate_info ${SuccessRateVar};",
     "",
   )
 
@@ -25,6 +28,10 @@ object InvokerConstants {
   val InvokerStateArgDeclaration = "struct fuzzer_state *state"
   val InvokerEntryPoint = s"void invoke_next_op($InvokerStateArgDeclaration, uint8_t opc) {"
   val PatchInvokerName = "invoke___patch"
+
+  val SuccessRateAllocator = "mutator_allocate_success_rate"
+  val SuccessRateReporter = "mutator_report_success_or_failure"
+  val SuccessRateVar = "invoker_success_rate"
 
   val InvokerState = "state"
 

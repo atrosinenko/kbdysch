@@ -3,7 +3,44 @@
 #include "kbdysch/mutator-interface.h"
 #include "kbdysch/options.h"
 
+DECLARE_BOOL_KNOB(populate_success_rate, "POPULATE_SUCCESS_RATE")
 DEBUG_COUNTER(num_tags, "Number of %-prefixed tags processed")
+
+void do_populate_success_rate() {
+  // <success_rate>_<num_occurrences>
+  const char *labels[] = {
+      "always_3",
+      "never_0",
+      "never_2",
+      "frequent_4",
+      "rare_3",
+      "half_2",
+  };
+  struct success_rate_info info;
+  info = mutator_allocate_success_rate("Dummy success rate", labels, 6);
+  mutator_allocate_counters("After dummy success rate", 1);
+
+  // always_3
+  mutator_report_success_or_failure(&info, 0, true);
+  mutator_report_success_or_failure(&info, 0, true);
+  mutator_report_success_or_failure(&info, 0, true);
+  // never_0
+  // never_2
+  mutator_report_success_or_failure(&info, 2, false);
+  mutator_report_success_or_failure(&info, 2, false);
+  // frequent_4
+  mutator_report_success_or_failure(&info, 3, true);
+  mutator_report_success_or_failure(&info, 3, true);
+  mutator_report_success_or_failure(&info, 3, true);
+  mutator_report_success_or_failure(&info, 3, false);
+  // rare_3
+  mutator_report_success_or_failure(&info, 4, true);
+  mutator_report_success_or_failure(&info, 4, false);
+  mutator_report_success_or_failure(&info, 4, false);
+  // half_2
+  mutator_report_success_or_failure(&info, 5, true);
+  mutator_report_success_or_failure(&info, 5, false);
+}
 
 int from_decimal_digit(char ch) {
   if (ch < '0' || '9' < ch)
@@ -16,6 +53,9 @@ int main(int argc, const char *argv[]) {
   mutator_init();
 
   res_load_whole_stdin(state);
+
+  if (populate_success_rate)
+    do_populate_success_rate();
 
   if (setjmp(*res_get_stopper_env(state)) == 0) {
     for (;;) {

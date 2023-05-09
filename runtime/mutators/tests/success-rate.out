@@ -1,0 +1,8 @@
+ - Usage count (queue):
+   never_0 (0.00), never_2 (2.00), half_2 (2.00), always_3 (3.00), rare_3 (3.00), frequent_4 (4.00)
+ - Usage count (all):
+   never_0 (0.00), never_2 (2.00), half_2 (2.00), always_3 (3.00), rare_3 (3.00), frequent_4 (4.00)
+ - Success (queue):
+   never_0 (-nan), never_2 (0.00), rare_3 (0.33), half_2 (0.50), frequent_4 (0.75), always_3 (1.00)
+ - Success (all):
+   never_0 (-nan), never_2 (0.00), rare_3 (0.33), half_2 (0.50), frequent_4 (0.75), always_3 (1.00)

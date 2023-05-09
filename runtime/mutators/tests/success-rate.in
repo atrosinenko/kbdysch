@@ -1,0 +1,4 @@
+[ENV:POPULATE_SUCCESS_RATE=1]
+[BEGIN:Dummy success rate]
+[END:After dummy success rate]
+Input

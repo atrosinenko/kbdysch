@@ -30,7 +30,8 @@ object Descriptions {
     def allVariables: Seq[AnnotatedArg] = args :+ ret
   }
   final case class IndexedSyscall(syscall: Syscall, globalIndex: Int, localIndex: Int) {
-    def invokerName: String = s"invoke_${syscall.name}_$localIndex"
+    def shortInvokerName: String = s"${syscall.name}_$localIndex"
+    def invokerName: String = s"invoke_$shortInvokerName"
   }
 
   final case class StructLike(name: String, fields: Seq[AnnotatedArgConstructor], isUnion: Boolean) extends DescriptionItem

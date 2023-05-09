@@ -118,6 +118,7 @@ class InvokerGenerator(descriptions: Descriptions, syscallCapacity: Int, compari
           writeLn(s"// process return value: ${arg.name}")
           arg.tpe.processReturnValue(this)
         }
+        writeLn(s"${SuccessRateReporter}(&${SuccessRateVar}, ${syscall.globalIndex}, 0 <= ${syscall.syscall.ret.tpe.varName});")
         args.foreach { arg =>
           writeLn(s"// deinit: ${arg.name}")
           arg.tpe.deinitInstance(this)
@@ -129,6 +130,24 @@ class InvokerGenerator(descriptions: Descriptions, syscallCapacity: Int, compari
       println(s"Error generating invoker for: ${syscall.invokerName}")
       ex.printStackTrace()
       System.exit(1)
+  }
+
+  private def generateSuccessRateVar(descriptions: Descriptions): Unit = {
+    writeLn("const char *invoker_labels[] = {")
+    val syscalls = descriptions.indexedSyscalls
+    indented {
+      syscalls.foreach { indexedSyscall =>
+        writeLn(s"$Q${indexedSyscall.shortInvokerName}$Q,")
+      }
+    }
+    writeLn("};")
+    writeLn("")
+    writeLn("CONSTRUCTOR(constr_success_rate) {")
+    indented {
+      writeLn(s"${SuccessRateVar} = ${SuccessRateAllocator}(${Q}Invoker${Q}, invoker_labels, ${syscalls.size});")
+    }
+    writeLn("}")
+    writeLn("")
   }
 
   private def generateInvokerDispatcher(descriptions: Descriptions): Unit = {
@@ -173,6 +192,7 @@ class InvokerGenerator(descriptions: Descriptions, syscallCapacity: Int, compari
     descriptions.indexedSyscalls.foreach { indexedSyscall =>
       generateSyscallInvoker(indexedSyscall)
     }
+    generateSuccessRateVar(descriptions)
     generateInvokerDispatcher(descriptions)
 
     getResult

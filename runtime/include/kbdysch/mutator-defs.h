@@ -54,6 +54,7 @@ enum mutator_fixed_record_type {
   MUTATOR_VAR_STOP = 0,
   MUTATOR_VAR_COUNTERS,
   MUTATOR_VAR_STRINGS,
+  MUTATOR_VAR_SUCCESS_RATE, // Compound: [str:label, count:ok, count:fail]
 };
 
 enum mutator_opcode {
@@ -114,7 +115,7 @@ struct mutator_log_propose_change {
 #define MUTATOR_MAX_TEST_CASE_LENGTH (1 << 20)
 
 #define MUTATOR_MAX_VARIABLES 100
-#define MUTATOR_SHM_VARS_BYTES 4000
+#define MUTATOR_SHM_VARS_BYTES 65536
 #define MUTATOR_SHM_VAR_IN_CURRENT_AREA(ptr) \
     ((void *)(((uint8_t *)(ptr)) + MUTATOR_SHM_VARS_BYTES))
 

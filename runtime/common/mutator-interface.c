@@ -111,6 +111,55 @@ debug_variable *mutator_allocate_strings(const char *name, size_t max_strlen, si
   return allocate_mutator_var(MUTATOR_VAR_STRINGS, name, max_strlen, max_strings);
 }
 
+struct success_rate_info mutator_allocate_success_rate(
+    const char *name, const char *labels[], size_t num_labels) {
+  size_t max_strlen = 1;
+  for (unsigned i = 0; i < num_labels; ++i) {
+    size_t len = strlen(labels[i]) + 1;
+    if (max_strlen < len)
+      max_strlen = len;
+  }
+
+  debug_variable *var_labels = mutator_allocate_strings("<labels>", max_strlen, num_labels);
+  debug_variable *var_success = mutator_allocate_counters("<success>", num_labels);
+  debug_variable *var_failure = mutator_allocate_counters("<failure>", num_labels);
+  debug_variable *var = allocate_mutator_var(MUTATOR_VAR_SUCCESS_RATE, name, 8 /* sizeof(dummy) */, 1);
+
+  if (!var) {
+    // TODO Is it a good idea to return NULL from mutator_allocate_*()?
+    struct success_rate_info dummy = {0, 0, 0};
+    return dummy;
+  }
+
+  var_labels->num_elements_real = num_labels;
+  var_success->num_elements_real = num_labels;
+  var_failure->num_elements_real = num_labels;
+
+  for (unsigned i = 0; i < num_labels; ++i) {
+    char *ptr = mutator_variable_get_ptr(var_labels, i);
+    strcpy(ptr, labels[i]);
+  }
+
+  struct success_rate_info info;
+  info.num_labels = num_labels;
+  info.success = mutator_variable_get_ptr(var_success, 0);
+  info.failure = mutator_variable_get_ptr(var_failure, 0);
+  return info;
+}
+
+void mutator_report_success_or_failure(
+    struct success_rate_info *info, unsigned index, bool is_success) {
+  if (!info->num_labels)
+    return;
+
+  assert(index < info->num_labels);
+  if (is_success) {
+    INCREMENT_DEBUG_COUNTER_RAW(info->success, index, 1);
+  } else {
+    INCREMENT_DEBUG_COUNTER_RAW(info->failure, index, 1);
+  }
+}
+
 void *mutator_variable_get_ptr(debug_variable *header, int index) {
   if (!header)
     return NULL;

@@ -20,6 +20,7 @@ public:
 
   virtual void accumulate() = 0;
   virtual void print(FILE *stream, unsigned var_index);
+  unsigned num_elements_real();
 
   virtual ~variable() {}
 
@@ -27,7 +28,6 @@ protected:
   variable(const std::string &name, unsigned max_num_elements, mutator_num_elements_t *num_elements_real)
       : Name(name), MaxNumElements(max_num_elements), NumElementsReal(num_elements_real) {}
 
-  unsigned num_elements_real();
   virtual void print_scalar(FILE *stream, unsigned subscript) = 0;
 
   std::string Name;

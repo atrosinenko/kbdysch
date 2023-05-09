@@ -10,11 +10,21 @@ extern "C" {
 
 typedef struct mutator_var_header debug_variable;
 
+struct success_rate_info {
+  unsigned num_labels;
+  mutator_u64_var_t *success;
+  mutator_u64_var_t *failure;
+};
+
 void mutator_init(void);
 
 debug_variable *mutator_allocate_counters(const char *name, size_t max_counters);
 
 debug_variable *mutator_allocate_strings(const char *name, size_t max_strlen, size_t max_strings);
+
+struct success_rate_info mutator_allocate_success_rate(const char *name, const char *labels[], size_t num_labels);
+
+void mutator_report_success_or_failure(struct success_rate_info *info, unsigned index, bool is_success);
 
 void mutator_init_input(struct fuzzer_state *state);
 
@@ -51,14 +61,17 @@ void mutator_propose_change(unsigned offset, uint64_t replacement, unsigned size
 #define RESIZE_DEBUG_VARIABLE(var_name, size) \
   if (var_name) var_name->num_elements_real = (size)
 
-#define INCREMENT_DEBUG_COUNTER(var_name, index, increment) \
-  if (var_name##_counters) { \
-    mutator_u64_var_t *counter = &var_name##_counters[(index)]; \
+#define INCREMENT_DEBUG_COUNTER_RAW(raw_var_name, index, increment) \
+  if (raw_var_name) { \
+    mutator_u64_var_t *counter = &raw_var_name[(index)]; \
     mutator_u64_var_t *counter_current = (mutator_u64_var_t *)MUTATOR_SHM_VAR_IN_CURRENT_AREA(counter); \
     unsigned inc = (increment); \
     *counter += inc; \
     *counter_current += inc; \
   }
+
+#define INCREMENT_DEBUG_COUNTER(var_name, index, increment) \
+  INCREMENT_DEBUG_COUNTER_RAW(var_name##_counters, index, increment)
 
 #define DEBUG_INC(var_name) INCREMENT_DEBUG_COUNTER(var_name, 0, 1)
 
