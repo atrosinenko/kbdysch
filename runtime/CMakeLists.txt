@@ -16,6 +16,7 @@ add_compile_options(-fPIC)
 link_libraries(-Wl,--export-dynamic)
 add_subdirectory(dummy-lkl)
 add_subdirectory(common)
+add_subdirectory(userspace)
 add_subdirectory(mutators)
 
 RegisterHarness(testfuzz)
