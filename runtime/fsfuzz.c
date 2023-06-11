@@ -65,7 +65,7 @@ int main(int argc, const char *argv[])
 
       exit_if_too_many_errors(state);
       skip_block_if_requested(state, block_index);
-      size_t decoded_bytes = do_invoke(state, block_index);
+      size_t decoded_bytes = do_invoke(state, block_index, invoke_next_op);
       align_next_block(state, block_index, decoded_bytes);
     }
   }

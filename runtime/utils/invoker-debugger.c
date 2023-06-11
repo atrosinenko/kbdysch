@@ -15,7 +15,7 @@ int main(int argc, const char *argv[]) {
       int offset = atoi(offset_strings[block_index]) - 1;
       skip_block_if_requested(state, block_index);
       res_rewind_input(state, offset);
-      do_invoke(state, block_index);
+      do_invoke(state, block_index, invoke_next_op);
     }
   }
 }

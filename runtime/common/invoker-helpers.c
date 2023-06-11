@@ -42,12 +42,13 @@ void align_next_block(struct fuzzer_state *state, int block_index,
         block_index, bytes_to_skip, consume_total);
 }
 
-size_t do_invoke(struct fuzzer_state *state, int block_index) {
+size_t do_invoke(struct fuzzer_state *state, int block_index,
+                 invoker_entry_t invoker_entry) {
   size_t old_offset = res_get_cur_offset(state);
   uint8_t opcode = res_get_u8(state);
   TRACE(state, "==> [%03d] Decoding at offset %zu, opcode = 0x%02x...",
         block_index, old_offset, (unsigned)opcode);
-  invoke_next_op(state, opcode);
+  invoker_entry(state, opcode);
   size_t decoded_bytes = res_get_cur_offset(state) - old_offset;
   TRACE(state, "<== [%03d] Decoded %zu bytes.", block_index, decoded_bytes);
   return decoded_bytes;

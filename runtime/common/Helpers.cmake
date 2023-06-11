@@ -5,13 +5,13 @@ function(RegisterInvoker name)
   if (USE_INVOKERS)
     add_library(invoker_${name} STATIC
       "${GENERATED_INVOKER_DIR}/invoker-${name}.c")
-    target_link_libraries(invoker_${name} invoker_lib)
+    target_link_libraries(invoker_${name} common_lib)
     # FIXME: Remove after fixing code generator
     target_compile_options(invoker_${name} PRIVATE
       -Wno-incompatible-pointer-types)
 
     add_executable(debug-${name} utils/invoker-debugger.c)
-    target_link_libraries(debug-${name} invoker_lib invoker_${name})
+    target_link_libraries(debug-${name} common_lib invoker_${name})
   endif()
 endfunction()
 
@@ -45,7 +45,7 @@ function(RegisterHarnessWithInvoker name invoker_name)
   if (USE_INVOKERS)
     FindSourceByBasename(source_file ${name})
     add_executable(${name} "${source_file}")
-    target_link_libraries(${name} invoker_lib userspace_lib "invoker_${invoker_name}")
+    target_link_libraries(${name} common_lib userspace_lib "invoker_${invoker_name}")
     PostprocessHarness(${name})
   endif()
 endfunction()

@@ -2,6 +2,7 @@ set(COMMON_LIB_SOURCES
   block.c
   hashing.c
   input.c
+  invoker-helpers.c
   kernel.c
   logging.c
   mutator-interface.c
@@ -9,10 +10,6 @@ set(COMMON_LIB_SOURCES
   packet-dumper.c
   resources.c
   util.c
-)
-
-set(INVOKER_LIB_SOURCES
-  invoker-helpers.c
 )
 
 add_library(common_lib STATIC ${COMMON_LIB_SOURCES})
@@ -33,11 +30,6 @@ if (FAKE_TIME)
 endif()
 
 target_link_libraries(common_lib -lpth -lrt -pthread)
-
-add_library(invoker_lib    STATIC ${INVOKER_LIB_SOURCES})
-add_library(invoker_no_lkl STATIC ${INVOKER_LIB_SOURCES})
-target_link_libraries(invoker_lib    common_lib)
-target_link_libraries(invoker_no_lkl common_no_lkl)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(PCAP libpcap)
