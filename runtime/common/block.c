@@ -10,6 +10,7 @@ DEBUG_STRINGS(part_types, "Partition types", FSTYPE_LEN, MAX_PART_COUNT)
 DEBUG_COUNTERS(mark_detected,      "Mark detected",                MAX_PART_COUNT)
 DEBUG_COUNTERS(mark_not_detected,  "Mark not detected",            MAX_PART_COUNT)
 DEBUG_COUNTERS(mark_detected_fail, "Mark detected (failed later)", MAX_PART_COUNT)
+DEBUG_COUNTERS(num_access, "Number of disk accesses", MAX_PART_COUNT)
 
 const uint8_t MARKER[4] = {'M', 'A', 'R', 'K'};
 
@@ -151,6 +152,7 @@ void blockdev_init_after_boot(struct fuzzer_state *state) {
   RESIZE_DEBUG_VARIABLE(mark_detected, part_count);
   RESIZE_DEBUG_VARIABLE(mark_not_detected, part_count);
   RESIZE_DEBUG_VARIABLE(mark_detected_fail, part_count);
+  RESIZE_DEBUG_VARIABLE(num_access, part_count);
   for (int i = 0; i < part_count; ++i) {
     // Create device file for each disk
     if (!state->partitions[i].blockdev.data)
@@ -177,6 +179,7 @@ static void update_access_history(struct kbdysch_block_dev *blk,
   if (blk->off_cur >= ACCESS_HISTORY_LEN)
     blk->off_cur = 0;
   blk->access_count++;
+  INCREMENT_DEBUG_COUNTER(num_access, blk->kbdysch_disk_index, 1);
 }
 
 void blockdev_patch_one_word(struct fuzzer_state *state, struct kbdysch_block_dev *blk) {
