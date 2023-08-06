@@ -42,14 +42,20 @@ static void kernel_dump_all_pertitions_if_requested(struct fuzzer_state *state)
   if (!dump_parts)
     return;
 
-  for (int part = 0; part < state->constant_state.part_count; ++part) {
+  for (int i = 0; i < state->constant_state.part_count; ++i) {
+    partition_t *part = &state->partitions[i];
+    unsigned num_sectors = part->blockdev.num_sectors;
+
     char dump_file_name[128];
-    snprintf(dump_file_name, sizeof(dump_file_name), "dump_%s.img",
-             state->partitions[part].fstype);
+    snprintf(dump_file_name, sizeof(dump_file_name),
+             "dump_%s.img", part->fstype);
+
+    for (int i = 0; i < num_sectors; ++i)
+      kbdysch_blk_ensure_raw(&part->blockdev, i);
 
     dump_to_file(dump_file_name,
-                 state->partitions[part].blockdev.data,
-                 state->partitions[part].blockdev.size);
+                 part->blockdev.data,
+                 num_sectors * BLK_SECTOR_SIZE);
   }
 }
 

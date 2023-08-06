@@ -13,20 +13,24 @@ DEBUG_COUNTERS(mark_detected_fail, "Mark detected (failed later)", MAX_PART_COUN
 
 const uint8_t MARKER[4] = {'M', 'A', 'R', 'K'};
 
-#define MARKED_SECTOR_NONE 0x0000
-#define MARKED_SECTOR_TYPE_MASK 0xFF00
+enum {
+  SECTOR_RAW,
+  SECTOR_BYTE_FILLED,
+};
 
-#define MARKED_SECTOR_TYPE_FILL 0x0100
+struct sector_state {
+  uint8_t mode;
+  uint8_t fill;
+};
 
-static void set_part_to_disk(struct lkl_disk *disk, struct kbdysch_block_dev *blk) {
-  disk->handle = blk;
+void kbdysch_fill_pattern(uint8_t *sector_data, uint8_t fill_byte) {
+  memset(sector_data, fill_byte, BLK_SECTOR_SIZE);
+  memcpy(sector_data, &MARKER, sizeof(MARKER)); // Overwrites the first bytes
 }
 
-static struct kbdysch_block_dev *part_from_disk(struct lkl_disk disk) {
-  return (struct kbdysch_block_dev *)disk.handle;
-}
-
-static bool u32_filled_with_byte(void *ptr, size_t size, uint8_t byte) {
+// FIXME Quick hack: using a "__san" substring makes AFL++ not instrument this function
+__attribute__((noinline))
+static bool u32_filled_with_byte__san(void *ptr, size_t size, uint8_t byte) {
   CHECK_THAT(((uintptr_t)ptr) % 4 == 0);
   CHECK_THAT(size % 4 == 0);
 
@@ -42,39 +46,103 @@ static bool u32_filled_with_byte(void *ptr, size_t size, uint8_t byte) {
   return true;
 }
 
-static bool detect_marked(int index, uint8_t *data, sector_description *result) {
-  if (memcmp(data, MARKER, sizeof(MARKER))) {
-    INCREMENT_DEBUG_COUNTER(mark_not_detected, index, 1);
-    return false;
+static struct sector_state detect_pattern(uint8_t *sector_data, unsigned blk_index) {
+  struct sector_state result = { SECTOR_RAW, 0 };
+
+  if (memcmp(sector_data, MARKER, sizeof(MARKER))) {
+    INCREMENT_DEBUG_COUNTER(mark_not_detected, blk_index, 1);
+    return result;
   }
 
-  uint8_t *remainder = &data[sizeof(MARKER)];
-  if (u32_filled_with_byte(remainder, BLK_SECTOR_SIZE - sizeof(MARKER), remainder[0])) {
-    INCREMENT_DEBUG_COUNTER(mark_detected, index, 1);
-    *result = MARKED_SECTOR_TYPE_FILL | (unsigned)remainder[0];
-    return true;
+  uint8_t *remainder = &sector_data[sizeof(MARKER)];
+  if (u32_filled_with_byte__san(remainder, BLK_SECTOR_SIZE - sizeof(MARKER), remainder[0])) {
+    INCREMENT_DEBUG_COUNTER(mark_detected, blk_index, 1);
+    result.mode = SECTOR_BYTE_FILLED;
+    result.fill = remainder[0];
+    return result;
   }
 
-  INCREMENT_DEBUG_COUNTER(mark_detected_fail, index, 1);
-  return false;
+  INCREMENT_DEBUG_COUNTER(mark_detected_fail, blk_index, 1);
+  return result;
 }
 
-static bool expand_marked(uint8_t *data, sector_description desc) {
-  switch (desc & MARKED_SECTOR_TYPE_MASK) {
-  case MARKED_SECTOR_TYPE_FILL:
-    memcpy(data, MARKER, sizeof(MARKER));
-    memset(data + sizeof(MARKER), desc & 0xff, BLK_SECTOR_SIZE - sizeof(MARKER));
-    return true;
+typedef void (*kbdysch_blk_op)(struct kbdysch_block_dev *blk, uint8_t *data,
+                              unsigned num_sectors, unsigned offset_sectors);
+
+static void kbdysch_blk_dummy(struct kbdysch_block_dev *blk, uint8_t *data,
+                              unsigned num_sectors, unsigned offset_sectors) {
+  // do nothing
+}
+
+static void kbdysch_blk_read(struct kbdysch_block_dev *blk, uint8_t *data,
+                             unsigned num_sectors, unsigned offset_sectors) {
+  for (unsigned i = 0; i < num_sectors; ++i) {
+    unsigned cur_sector = offset_sectors + i;
+    uint8_t *cur_data = &data[i * BLK_SECTOR_SIZE];
+
+    switch (blk->states[cur_sector].mode) {
+    case SECTOR_RAW:
+      memcpy(cur_data,
+             &blk->data[cur_sector * BLK_SECTOR_SIZE],
+             BLK_SECTOR_SIZE);
+      break;
+    case SECTOR_BYTE_FILLED:
+      kbdysch_fill_pattern(cur_data, blk->states[cur_sector].fill);
+      break;
+    default:
+      abort();
+    }
+  }
+}
+
+static void kbdysch_blk_write(struct kbdysch_block_dev *blk, uint8_t *data,
+                              unsigned num_sectors, unsigned offset_sectors) {
+  for (unsigned i = 0; i < num_sectors; ++i) {
+    unsigned cur_sector = offset_sectors + i;
+    uint8_t *cur_data = &data[i * BLK_SECTOR_SIZE];
+
+    blk->states[cur_sector] = detect_pattern(cur_data, blk->kbdysch_disk_index);
+    if (blk->states[cur_sector].mode == SECTOR_RAW) {
+      memcpy(&blk->data[cur_sector * BLK_SECTOR_SIZE],
+             cur_data,
+             BLK_SECTOR_SIZE);
+    }
+  }
+}
+
+void kbdysch_blk_ensure_raw(struct kbdysch_block_dev *blk,
+                            unsigned sector_index) {
+  uint8_t *sector_start = &blk->data[sector_index * BLK_SECTOR_SIZE];
+  struct sector_state *sector_state = &blk->states[sector_index];
+
+  switch (sector_state->mode) {
+  case SECTOR_RAW:
+    break;
+  case SECTOR_BYTE_FILLED:
+    kbdysch_fill_pattern(sector_start, sector_state->fill);
+    sector_state->mode = SECTOR_RAW;
+    break;
   default:
     abort();
   }
 }
 
+static void set_part_to_disk(struct lkl_disk *disk, struct kbdysch_block_dev *blk) {
+  disk->handle = blk;
+}
+
+static struct kbdysch_block_dev *block_dev_from_disk(struct lkl_disk disk) {
+  return (struct kbdysch_block_dev *)disk.handle;
+}
+
 void blockdev_assign_data(struct kbdysch_block_dev *blk, uint8_t *data, size_t size) {
+  CHECK_THAT(size % BLK_SECTOR_SIZE == 0);
   set_part_to_disk(&blk->disk, blk);
-  blk->size = size;
+
+  unsigned num_sectors = size / BLK_SECTOR_SIZE;
   blk->data = data;
-  blk->sector_state = size == 0 ? NULL : calloc(1 + size / BLK_SECTOR_SIZE, sizeof(blk->sector_state[0]));
+  blk->states = calloc(num_sectors, sizeof(struct sector_state));
+  blk->num_sectors = num_sectors;
 }
 
 void blockdev_init_after_boot(struct fuzzer_state *state) {
@@ -126,6 +194,9 @@ void blockdev_patch_one_word(struct fuzzer_state *state, struct kbdysch_block_de
   const int32_t param2 = res_get_u32(state);
   const int patch_local_offset = (param2 > 0) ? (param2 % patch_local_range) : (param2 % patch_local_range + patch_local_range);
   size_t partition_offset = blk->off_start[access_nr] + patch_local_offset;
+
+  // TODO Handle crossing sector boundaries
+  kbdysch_blk_ensure_raw(blk, partition_offset / BLK_SECTOR_SIZE);
   void *patch_destination = blk->data + partition_offset;
 
   uint64_t original_data, patched_data;
@@ -164,90 +235,49 @@ void blockdev_patch_one_word(struct fuzzer_state *state, struct kbdysch_block_de
 #include "lkl_host.h"
 
 static int mem_get_capacity(struct lkl_disk disk, unsigned long long *res) {
-  *res = part_from_disk(disk)->size;
+  unsigned num_sectors = block_dev_from_disk(disk)->num_sectors;
+  *res = num_sectors * BLK_SECTOR_SIZE;
   return LKL_DEV_BLK_STATUS_OK;
 }
 
 static int mem_request(struct lkl_disk disk, struct lkl_blk_req *req) {
-  struct kbdysch_block_dev *blk = part_from_disk(disk);
+  struct kbdysch_block_dev *blk = block_dev_from_disk(disk);
   int disk_index = blk->kbdysch_disk_index;
-  bool is_read;
+  kbdysch_blk_op op_handler;
+
   switch(req->type) {
     case LKL_DEV_BLK_TYPE_READ:
-      is_read = true;
+      op_handler = kbdysch_blk_read;
       break;
     case LKL_DEV_BLK_TYPE_WRITE:
-      is_read = false;
+      op_handler = kbdysch_blk_write;
       break;
     case LKL_DEV_BLK_TYPE_FLUSH:
     case LKL_DEV_BLK_TYPE_FLUSH_OUT:
-      // no-op
+      op_handler = kbdysch_blk_dummy;
       return LKL_DEV_BLK_STATUS_OK;
     default:
+      // TODO Support TRIM
       return LKL_DEV_BLK_STATUS_UNSUP;
   }
 
-  size_t offset = req->sector * 512;
-
-  if (offset >= blk->size)
+  const unsigned total_sectors = blk->num_sectors;
+  if (req->sector >= total_sectors)
       return LKL_DEV_BLK_STATUS_IOERR;
 
+  size_t cur_sector = req->sector;
   for (int i = 0; i < req->count; ++i) {
     // Process single iovec entry
     uint8_t *req_ptr = req->buf[i].iov_base;
     size_t length = req->buf[i].iov_len;
-    if (offset + length > blk->size)
+    CHECK_THAT(length % 512 == 0);
+    if (cur_sector + length / 512 > total_sectors)
       return LKL_DEV_BLK_STATUS_IOERR;
 
-    update_access_history(blk, offset, length);
+    update_access_history(blk, cur_sector * 512, length);
+    op_handler(blk, req_ptr, length / 512, cur_sector);
 
-    // Split each iovec further, so that each sub-operation
-    // never crosses sector boundaries.
-    while (length > 0) {
-      size_t sector_index = offset / BLK_SECTOR_SIZE;
-      size_t sector_offset = offset % BLK_SECTOR_SIZE;
-      sector_description *marker_desc = &blk->sector_state[sector_index];
-      size_t sub_length = BLK_SECTOR_SIZE - sector_offset; // the remainder of this sector
-      if (sub_length > length)
-        sub_length = length;
-      bool whole_sector = sector_offset == 0 && sub_length == BLK_SECTOR_SIZE;
-
-      uint8_t *cur_part_ptr = &blk->data[offset];
-      uint8_t *cur_req_ptr = req_ptr;
-      req_ptr += sub_length;
-      offset += sub_length;
-      length -= sub_length;
-
-      if (whole_sector) {
-        sector_description tmp;
-        // Try leveraging marked sector representation
-        if (is_read && *marker_desc) {
-          expand_marked(cur_req_ptr, *marker_desc);
-          continue;
-        } else if (!is_read && detect_marked(disk_index, cur_req_ptr, &tmp)) {
-          *marker_desc = tmp;
-          continue;
-        } else if (!is_read) {
-          // Writing full sector as raw, no need to expand existing mark, if any.
-          *marker_desc = MARKED_SECTOR_NONE;
-          memcpy(cur_part_ptr, cur_req_ptr, BLK_SECTOR_SIZE);
-          continue;
-        }
-      }
-
-      if (!is_read && *marker_desc) {
-        // Partially overwriting marked sector - expand mark first
-        expand_marked(cur_part_ptr - sector_offset, *marker_desc);
-        *marker_desc = MARKED_SECTOR_NONE;
-      }
-
-      CHECK_THAT(*marker_desc == MARKED_SECTOR_NONE);
-
-      if (is_read)
-        memcpy(cur_req_ptr, cur_part_ptr, sub_length);
-      else
-        memcpy(cur_part_ptr, cur_req_ptr, sub_length);
-    }
+    cur_sector += length / 512;
   }
   return LKL_DEV_BLK_STATUS_OK;
 }
