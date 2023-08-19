@@ -23,22 +23,23 @@ jobs:
   build-and-test:
     timeout-minutes: 10
     needs: generate-invokers
+    env:
+      cxx_compilers: "{'gcc': 'g++', 'clang': 'clang++', 'afl-clang-fast': 'afl-clang-fast++'}"
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04, ubuntu-22.04]
         compiler: [clang, gcc]
+        extra_cflags: ['']
         extra_cmake_opts: ['']
         extra_ubuntu_packages: ['']
         include:
           - os: ubuntu-22.04
             compiler: clang
-            extra_cmake_opts: '-DCMAKE_C_FLAGS="-fsanitize=undefined"'
-            extra_ubuntu_packages:
+            extra_cflags: "-fsanitize=undefined"
           - os: ubuntu-22.04
             compiler: clang
-            extra_cmake_opts: '-DCMAKE_C_FLAGS="-fsanitize=address"'
-            extra_ubuntu_packages:
+            extra_cflags: "-fsanitize=address"
           - os: ubuntu-22.04
             compiler: afl-clang-fast
             extra_cmake_opts: '-DKBDYSCH_PERFORM_AFL_TESTS=ON'
@@ -60,6 +61,7 @@ jobs:
         run: |
           echo "OS: ${{matrix.os}}, compiler: ${{matrix.compiler}}"
           echo "Extra Ubuntu packages: [${{matrix.extra_ubuntu_packages}}]"
+          echo "Extra CFLAGS: [${{matrix.extra_cflags}}]"
           echo "Extra CMake options: [${{matrix.extra_cmake_opts}}]"
           gcc --version
           clang --version
@@ -71,7 +73,15 @@ jobs:
           name: invokers
           path: runtime/generated
       - name: Run CMake
-        run: mkdir build && cd build && cmake .. -DUSE_LKL=OFF -DUSE_DUMMY_LKL=ON -DCMAKE_C_COMPILER=${{matrix.compiler}} ${{matrix.extra_cmake_opts}}
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DUSE_LKL=OFF -DUSE_DUMMY_LKL=ON \
+              -DCMAKE_C_COMPILER=${{matrix.compiler}} \
+              -DCMAKE_CXX_COMPILER=${{ fromJSON(env.cxx_compilers)[matrix.compiler] }} \
+              -DCMAKE_C_FLAGS="${{matrix.extra_cflags}}" \
+              -DCMAKE_CXX_FLAGS="${{matrix.extra_cflags}}" \
+              ${{matrix.extra_cmake_opts}}
       - name: Build harnesses
         run: cmake --build ./build
       - name: Run tests

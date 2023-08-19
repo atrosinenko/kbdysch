@@ -75,9 +75,25 @@ static inline long lkl_exit_wrapper(long result)
 #else
 #define LKL_SC_NR(name) __lkl__NR_##name
 #endif
+
+#ifdef __cplusplus
+// Workaround for g++:
+//   error: taking address of temporary array
+static inline
+long lkl_syscall_overloaded(long num, long a = 0, long b = 0, long c = 0,
+                            long d = 0, long e = 0, long f = 0) {
+  long args[] = {a, b, c, d, e, f};
+  return lkl_syscall(num, args);
+}
+#define LKL_SAFE_SYSCALL(name, ...) \
+    (compiler_enter_lkl(), lkl_exit_wrapper( \
+        lkl_syscall_overloaded(LKL_SC_NR(name), __VA_ARGS__)))
+#else
 #define LKL_SAFE_SYSCALL(name, ...) \
     (compiler_enter_lkl(), lkl_exit_wrapper( \
         lkl_syscall(LKL_SC_NR(name), (long[]){__VA_ARGS__, 0, 0, 0, 0, 0, 0})))
+#endif // __cplusplus
+
 #define LKL_ERRNO(retval) (retval)
 #define LKL_STRERROR(retval) lkl_strerror((retval))
 #else
