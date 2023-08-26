@@ -1,12 +1,20 @@
 #include "kbdysch/userspace/dm.h"
 
+#include "kbdysch/kbdysch.h"
+
 #include <assert.h>
+#include <fcntl.h>
 #include <string.h>
 
 #include <sys/ioctl.h>
 #include <linux/dm-ioctl.h>
 
 namespace kbdysch {
+
+int dm_configurator::open_dm_control(struct fuzzer_state *state) {
+  return kernel_open_device_by_sysfs_name(
+      state, "dm-control", "class/misc/device-mapper", S_IFCHR);
+}
 
 dm_configurator::dm_configurator(ioctl_wrapper &ioctl,
                                  const std::string &device_name)

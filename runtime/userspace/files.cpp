@@ -4,6 +4,7 @@
 
 #include <fcntl.h>
 #include <string.h>
+#include <sys/stat.h>
 
 size_t kernel_read_from_file(struct fuzzer_state *state, const char *filename,
                              const void *data, size_t size) {
@@ -56,4 +57,10 @@ void wait_for_fd(struct fuzzer_state *state, int fd, bool for_read, bool for_wri
     LOG_FATAL("pselect6: %s", STRERROR(state, res));
     abort();
   }
+}
+
+unsigned get_file_size(const char *file_name) {
+  struct stat sb;
+  CHECK_THAT(0 == stat(file_name, &sb));
+  return sb.st_size;
 }

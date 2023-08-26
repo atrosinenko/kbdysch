@@ -1,12 +1,12 @@
 #ifndef KBDYSCH_BLOCK_H
 #define KBDYSCH_BLOCK_H
 
+#include "kbdysch/kbdysch.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef USE_LKL
-#include "lkl.h"
-#else
+#ifndef USE_LKL
 struct lkl_disk {
   /* dummy */
   void *handle;

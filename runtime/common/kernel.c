@@ -61,8 +61,9 @@ static void kernel_dump_all_pertitions_if_requested(struct fuzzer_state *state)
   }
 }
 
-void kernel_setup_disk(struct fuzzer_state *state, const char *filename, const char *fstype)
-{
+unsigned kernel_setup_disk(struct fuzzer_state *state,
+                           const char *filename,
+                           const char *fstype) {
   partition_t *partition = &state->partitions[state->constant_state.part_count];
 
   int image_fd = open(filename, O_RDONLY);
@@ -83,9 +84,20 @@ void kernel_setup_disk(struct fuzzer_state *state, const char *filename, const c
 
   strncpy(partition->fstype, fstype, sizeof(partition->fstype));
 
-  state->constant_state.part_count += 1;
+  return state->constant_state.part_count++;
 }
 
+unsigned kernel_setup_raw_disk(struct fuzzer_state *state,
+                               const char *fstype,
+                               size_t size) {
+  partition_t *partition = &state->partitions[state->constant_state.part_count];
+
+  uint8_t *data = map_host_huge_pages_if_possible(state, fstype, -1, size);
+  blockdev_assign_data(&partition->blockdev, data, size);
+
+  strncpy(partition->fstype, fstype, sizeof(partition->fstype));
+  return state->constant_state.part_count++;
+}
 
 static void add_all_disks(struct fuzzer_state *state)
 {
@@ -285,9 +297,9 @@ static void recurse_into_directory(struct fuzzer_state *state, int part, struct 
 
 #else // USE_LKL
 
-void kernel_setup_disk(struct fuzzer_state *state, const char *filename, const char *fstype)
-{
+unsigned kernel_setup_disk(struct fuzzer_state *state, const char *filename, const char *fstype) {
   warn_lkl_not_supported();
+  return 0;
 }
 
 #endif // USE_LKL

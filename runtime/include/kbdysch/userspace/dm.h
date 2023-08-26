@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+struct fuzzer_state;
+
 namespace kbdysch {
 
 class dm_configurator {
@@ -18,6 +20,8 @@ public:
   void load_table(unsigned sector_start, unsigned num_sectors,
                   const std::string &type, const std::string &args);
   void suspend();
+
+  static int open_dm_control(struct fuzzer_state *state);
 
 private:
   void reset_arg();

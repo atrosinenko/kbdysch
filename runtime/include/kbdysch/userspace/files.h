@@ -13,6 +13,7 @@ void kernel_dump_file_contents(struct fuzzer_state *state, const char *filename)
 void kernel_write_to_file(struct fuzzer_state *state, const char *filename, const void *data, size_t size, int write_may_fail);
 void kernel_write_string_to_file(struct fuzzer_state *state, const char *filename, const char *str, int write_may_fail);
 void wait_for_fd(struct fuzzer_state *state, int fd, bool for_read, bool for_write);
+unsigned get_file_size(const char *file_name);
 
 #ifdef __cplusplus
 }
