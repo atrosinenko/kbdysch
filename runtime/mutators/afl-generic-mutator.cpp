@@ -61,6 +61,8 @@ struct mutator_state {
 
   std::vector<mutation_strategy *> strategies;
 
+  void create_debug_dump();
+
   ~mutator_state();
 };
 
@@ -77,6 +79,21 @@ mutator_state::~mutator_state() {
     delete s;
   for (auto v : variables)
     delete v;
+}
+
+void mutator_state::create_debug_dump() {
+  auto dump = [](const char *suffix, buffer_ref buf) {
+    FILE *f = create_temp_file("/tmp/dump-", suffix);
+    fwrite(buf.bytes(), buf.size(), 1, f);
+    fclose(f);
+  };
+  // FIXME Make this method const after fixing
+  //           types ‘std::array<_Tp, _Nm>’ and ‘const std::array<unsigned char, 1048576>’ have incompatible cv-qualifiers
+  //       in `const buffer_ref array_ref::as_storage() const`.
+  fprintf(stderr, "Writing debug dump... ");
+  dump(".input", input.as_data());
+  dump(".journal", journal_shm.buffer());
+  fprintf(stderr, "done.\n");
 }
 
 static void parse_variables_area(struct mutator_state *state) {
@@ -198,15 +215,19 @@ size_t afl_custom_fuzz(void *data, uint8_t *buf, size_t buf_size, uint8_t **out_
     return buf_size;
   case mutator_state::RECORD_LOG_CAPTURE_LOG:
     ERR("Trying to save log...\n");
-    if (!save_log_from_shm(state, state->input.as_data(), "best effort mode"))
+    if (!save_log_from_shm(state, state->input.as_data(), "best effort mode")) {
+      state->create_debug_dump();
       abort();
+    }
     accumulate_important_data(state);
     state->current_journal.load_journal(state->input.as_data());
     state->record_log_next_action = mutator_state::RECORD_LOG_NONE;
   case mutator_state::RECORD_LOG_CAPTURE_LOG_AS_IS:
     ERR("Trying to save log as-is...\n");
-    if (!save_log_from_shm(state, buffer_ref(), "best effort mode"))
+    if (!save_log_from_shm(state, buffer_ref(), "best effort mode")) {
+      state->create_debug_dump();
       abort();
+    }
     accumulate_important_data(state);
     state->record_log_next_action = mutator_state::RECORD_LOG_NONE;
     break;

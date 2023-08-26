@@ -17,6 +17,8 @@ extern FILE *error_log;
 void init_error_logging();
 void deinit_error_logging();
 
+FILE *create_temp_file(const char *prefix, const char *suffix);
+
 #define DECL_WITH_TYPE(type, new_name, ptr) \
   type *new_name = (type *)(ptr)
 
@@ -139,6 +141,10 @@ public:
   }
   const uint8_t *begin() const {
     return AllocatableBuffer.bytes();
+  }
+
+  const buffer_ref buffer() const {
+    return AllocatableBuffer;
   }
 
   bool in_bounds(const void *ptr, size_t length) const {

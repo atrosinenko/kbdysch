@@ -13,13 +13,18 @@ DECLARE_BOOL_KNOB(debug_logging, "KBDYSCH_MUTATOR_DEBUG")
 
 FILE *kbdysch::mutator::error_log;
 
+FILE *kbdysch::mutator::create_temp_file(
+    const char *prefix, const char *suffix) {
+  char log_name[128];
+  sprintf(log_name, "%s%d%s", prefix, getpid(), suffix);
+  return fopen(log_name, "w");
+}
+
 void kbdysch::mutator::init_error_logging() {
   if (!debug_logging)
     return;
 
-  char log_name[128];
-  sprintf(log_name, "/tmp/kbdysch-mutator-%d.log", getpid());
-  error_log = fopen(log_name, "w");
+  error_log = create_temp_file("/tmp/kbdysch-mutator-", ".log");
   setvbuf(error_log, NULL, _IONBF, 0);
 }
 
