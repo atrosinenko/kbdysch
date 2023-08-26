@@ -179,7 +179,8 @@ uint32_t afl_custom_fuzz_count(void *data, const uint8_t *buf, size_t buf_size) 
   DECL_WITH_TYPE(struct mutator_state, state, data);
   DEBUG_TRACE_FUNC;
 
-  // Input is loaded by afl_custom_queue_get()
+  state->input.resize(buf_size);
+  memcpy(state->input.bytes(), buf, buf_size);
   bool has_log = state->current_journal.load_journal(state->input.as_data());
 
   state->best_effort_mode = !has_log;
@@ -288,8 +289,6 @@ uint8_t afl_custom_queue_get(void *data, const char *filename) {
   DEBUG_TRACE_FUNC;
 
   parse_variables_area(state);
-
-  state->input.resize(read_file(filename, state->input.as_storage()));
 
   return 1;
 }
