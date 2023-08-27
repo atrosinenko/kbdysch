@@ -8,7 +8,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <sys/mman.h>
 #include <sys/sysmacros.h>
 #include <linux/stat.h> // for STATX_MODE on Ubuntu 18.04
 #include <ctype.h>
@@ -59,32 +58,6 @@ static void kernel_dump_all_pertitions_if_requested(struct fuzzer_state *state)
   }
 }
 
-static void *map_internal(struct fuzzer_state *state, const char *desc, int fd, size_t size) {
-  void *result;
-  // First, try with HugeTLB enabled to speed up forkserver
-  TRACE_NO_NL(state, "Loading %s with HugeTLB... ", desc);
-  result = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
-  if (result != MAP_FAILED) {
-    TRACE(state, "OK");
-    if (fd >= 0)
-      CHECK_THAT(pread(fd, result, size, 0) == size);
-  } else {
-    WARN(state, "Cannot load %s with HugeTLB: %s", desc, strerror(errno));
-    TRACE_NO_NL(state, "Loading %s without HugeTLB... ", desc);
-    int flags = MAP_PRIVATE;
-    if (fd == -1)
-      flags |= MAP_ANONYMOUS;
-    result = mmap(NULL, size, PROT_READ | PROT_WRITE, flags, fd, 0);
-    if (result == MAP_FAILED) {
-      LOG_FATAL("Cannot load %s: %s", desc, strerror(errno));
-      abort();
-    } else {
-      TRACE(state, "OK");
-    }
-  }
-  return result;
-}
-
 void kernel_setup_disk(struct fuzzer_state *state, const char *filename, const char *fstype)
 {
   partition_t *partition = &state->partitions[state->constant_state.part_count];
@@ -101,7 +74,7 @@ void kernel_setup_disk(struct fuzzer_state *state, const char *filename, const c
     abort();
   }
 
-  uint8_t *data = map_internal(state, filename, image_fd, size);
+  uint8_t *data = map_host_huge_pages_if_possible(state, filename, image_fd, size);
   blockdev_assign_data(&partition->blockdev, data, size);
   close(image_fd);
 

@@ -41,6 +41,7 @@ void dump_to_file(const char *dump_file_name, const void *data, size_t size);
 void start_forksrv(void);
 void spawn_thread(struct fuzzer_state *state, void *(*thread_fn)(void *),
                   void *arg);
+void *map_host_huge_pages_if_possible(struct fuzzer_state *state, const char *desc, int fd, size_t size);
 void *alloc_target_pages(struct fuzzer_state *state, size_t size, int prot);
 
 typedef void (*stopper_func_t)(struct fuzzer_state *state);

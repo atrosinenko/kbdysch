@@ -1,6 +1,7 @@
 set(COMMON_LIB_SOURCES
   block.c
   hashing.c
+  hugepages.c
   input.c
   invoker-helpers.c
   kernel.c
