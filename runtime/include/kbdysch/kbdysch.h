@@ -14,6 +14,10 @@
 #ifdef USE_LKL
 // Workaround for "redefinition of 'ipc_perm'"
 #define ipc_perm __ipc_perm
+// Workaround for
+//   error: assigning to 'vring_desc_t *' (aka 'lkl_vring_desc *') from incompatible type 'void *'
+// when including kbdysch.h from a C++ source.
+#define _LKL_LINUX_VIRTIO_RING_H
 #include "lkl.h"
 #undef ipc_perm
 #endif
