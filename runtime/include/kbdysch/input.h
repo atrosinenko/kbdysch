@@ -100,4 +100,39 @@ void res_mark_consumed_reference(struct fuzzer_state *state,
 }
 #endif
 
+#ifdef __cplusplus
+
+namespace kbdysch {
+
+class input_wrapper {
+  struct fuzzer_state *State;
+  uint64_t ReservedBits;
+
+public:
+  explicit input_wrapper(struct fuzzer_state *state)
+      : State(state), ReservedBits(0) {}
+
+  unsigned u8() { return res_get_u8(State); }
+  unsigned u16() { return res_get_u16(State); }
+  unsigned u32() { return res_get_u32(State); }
+  uint64_t u64() { return res_get_u64(State); }
+
+  void reserve_bytes(unsigned num_bytes) {
+    ReservedBits = res_get_uint(State, num_bytes);
+  }
+
+  template <int NumBits>
+  uint64_t next_bits() {
+    static_assert(NumBits < 64, "Less than 64 bits expected");
+    const uint64_t mask = (1ULL << NumBits) - 1ULL;
+    uint64_t result = ReservedBits & mask;
+    ReservedBits >>= NumBits;
+    return result;
+  }
+};
+
+} // namespace kbdysch
+
+#endif // __cplusplus
+
 #endif  // KBDYSCH_INPUT_H
