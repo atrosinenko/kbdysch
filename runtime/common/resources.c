@@ -97,7 +97,7 @@ uint64_t res_get_uint(struct fuzzer_state *state, const char *name, size_t size)
 
 void res_copy_bytes(struct fuzzer_state *state, void *ptr, size_t size)
 {
-  if (state->saved_state.offset + size > state->constant_state.length)
+  if (state->current_state.offset + size > state->constant_state.length)
     stop_processing(state);
 
   uint8_t *source_ptr = get_and_consume(state, size);
