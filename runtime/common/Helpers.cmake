@@ -11,7 +11,8 @@ function(RegisterInvoker name)
       -Wno-incompatible-pointer-types)
 
     add_executable(debug-${name} utils/invoker-debugger.c)
-    target_link_libraries(debug-${name} common_lib invoker_${name})
+    # TODO Fix circular dependencies between userspace_lib and common_lib
+    target_link_libraries(debug-${name} common_lib userspace_lib invoker_${name})
   endif()
 endfunction()
 

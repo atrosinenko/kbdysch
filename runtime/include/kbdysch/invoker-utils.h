@@ -173,6 +173,8 @@ int res_need_recurse_into_pointees(struct fuzzer_state *state, const char *name,
  */
 void kernel_perform_patching(struct fuzzer_state *state);
 
+void kernel_perform_maintainance(struct fuzzer_state *state);
+
 /**
  * @brief Remount all file systems
  *

@@ -151,7 +151,7 @@ class InvokerGenerator(descriptions: Descriptions, syscallCapacity: Int, compari
   }
 
   private def generateInvokerDispatcher(descriptions: Descriptions): Unit = {
-    assert(descriptions.syscalls.size <= syscallCapacity - 2)
+    assert(descriptions.syscalls.size <= syscallCapacity - 3)
 
     writeLn(InvokerEntryPoint)
     indented {
@@ -164,6 +164,12 @@ class InvokerGenerator(descriptions: Descriptions, syscallCapacity: Int, compari
             writeLn(s"${indexedSyscall.invokerName}($InvokerState);")
             writeLn(s"break;")
           }
+        }
+        // emit MAINTAINANCE
+        writeLn(s"case ${syscallCapacity - 3}:")
+        indented {
+          writeLn(s"kernel_perform_maintainance($InvokerState);")
+          writeLn(s"break;")
         }
         // emit PATCH
         writeLn(s"case ${syscallCapacity - 2}:")

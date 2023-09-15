@@ -34,6 +34,11 @@ void log_printf(const struct fuzzer_state *state_or_null,
 #define LOG_FATAL(...) \
     log_printf(NULL, LOG_ASSERTION_FAILED, true, __VA_ARGS__)
 
+#define LU(x) ((unsigned long)(x))
+#define LD(x) ((long)(x))
+#define LLU(x) ((unsigned long long)(x))
+#define LLD(x) ((long long)(x))
+
 #ifdef __cplusplus
 }
 #endif

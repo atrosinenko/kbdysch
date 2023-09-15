@@ -4,6 +4,7 @@
 #include "kbdysch/internal-defs.h"
 #include "kbdysch/invoker-utils.h"
 #include "kbdysch/options.h"
+#include "kbdysch/userspace/btrfs.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -17,6 +18,7 @@ DECLARE_BOOL_KNOB(read_only, "READ_ONLY")
 DECLARE_BOOL_KNOB(no_printk, "NO_PRINTK")
 DECLARE_BOOL_KNOB(exit_on_oom, "EXIT_ON_OOM")
 DECLARE_BOOL_KNOB(no_patch, "NO_PATCH")
+DECLARE_BOOL_KNOB(no_maintainance, "NO_MAINTAINANCE")
 DECLARE_BITMASK_KNOB(no_bad_words, "NO_BAD_WORDS")
 DECLARE_STRING_KNOB(mount_options_knob, "MOUNT_OPTIONS")
 
@@ -300,6 +302,19 @@ void kernel_configure_diskless(struct fuzzer_state *state, const char *mpoint)
   strncpy(root_pseudo_partition->fstype,  "<root pseudo partition>", sizeof(root_pseudo_partition->fstype));
   root_pseudo_partition->registered_fds[0] = -1; // invalid FD
   root_pseudo_partition->registered_fds_count = 1; // count is never zero to avoid [x % 0]
+}
+
+void kernel_perform_maintainance(struct fuzzer_state *state) {
+  if (no_maintainance) {
+    WARN(state, "MAINTAINANCE requested, but is explicitly disabled, exiting.");
+    stop_processing(state);
+  }
+
+  for (int part_idx = 0; part_idx < state->constant_state.part_count; ++part_idx) {
+    partition_t *part = &state->partitions[part_idx];
+    if (!strcmp(part->fstype, "btrfs"))
+      kbdysch_btrfs_maintainance(state, part_idx);
+  }
 }
 
 void kernel_perform_remount(struct fuzzer_state *state)
