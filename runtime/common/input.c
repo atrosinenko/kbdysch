@@ -47,6 +47,41 @@ const uint8_t *res_get_data_ptr(struct fuzzer_state *state) {
   return state->constant_state.input_buffer;
 }
 
+void res_align_next_to(struct fuzzer_state *state, size_t alignment) {
+  uint64_t old_offset = state->current_state.offset;
+  uint64_t new_offset = (old_offset + alignment - 1) / alignment * alignment;
+  state->current_state.offset = new_offset;
+}
+
+void res_skip_bytes(struct fuzzer_state *state, size_t bytes_to_skip) {
+  state->current_state.offset += bytes_to_skip;
+}
+
+static uint8_t *get_and_consume(struct fuzzer_state *state, size_t bytes) {
+  uint8_t *result = state->constant_state.input_buffer + state->current_state.offset;
+  state->current_state.offset += bytes;
+  return result;
+}
+
+uint64_t res_get_uint(struct fuzzer_state *state, size_t size) {
+  uint64_t result = 0;
+  assert(size == 1 || size == 2 || size == 4 || size == 8);
+  res_align_next_to(state, size);
+  if (state->current_state.offset + size > state->constant_state.length)
+    stop_processing(state);
+
+  memcpy(&result, get_and_consume(state, size), size);
+  return result;
+}
+
+void res_copy_bytes(struct fuzzer_state *state, void *ptr, size_t size) {
+  if (state->current_state.offset + size > state->constant_state.length)
+    stop_processing(state);
+
+  uint8_t *source_ptr = get_and_consume(state, size);
+  memcpy(ptr, source_ptr, size);
+}
+
 void res_mark_section_start(struct fuzzer_state *state) {
   if (state->current_state.offset >= state->constant_state.length)
     stop_processing(state);

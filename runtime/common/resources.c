@@ -63,47 +63,6 @@ int res_get_part_count(const struct fuzzer_state *state)
   return state->constant_state.part_count;
 }
 
-void res_align_next_to(struct fuzzer_state *state, size_t alignment)
-{
-  state->current_state.offset = (state->current_state.offset + alignment - 1) / alignment * alignment;
-}
-
-void res_skip_bytes(struct fuzzer_state *state, size_t bytes_to_skip)
-{
-  state->current_state.offset += bytes_to_skip;
-}
-
-static uint8_t *get_and_consume(struct fuzzer_state *state, size_t bytes)
-{
-  uint8_t *result = state->constant_state.input_buffer + state->current_state.offset;
-  state->current_state.offset += bytes;
-  return result;
-}
-
-uint64_t res_get_uint(struct fuzzer_state *state, const char *name, size_t size)
-{
-  uint64_t result = 0;
-  assert(size == 1 || size == 2 || size == 4 || size == 8);
-  res_align_next_to(state, size);
-  if (state->current_state.offset + size > state->constant_state.length)
-    stop_processing(state);
-
-  memcpy(&result, get_and_consume(state, size), size);
-  if (name != NULL) {
-    LOG_ASSIGN("%zd / %zx", (int64_t)result, (int64_t)result);
-  }
-  return result;
-}
-
-void res_copy_bytes(struct fuzzer_state *state, void *ptr, size_t size)
-{
-  if (state->current_state.offset + size > state->constant_state.length)
-    stop_processing(state);
-
-  uint8_t *source_ptr = get_and_consume(state, size);
-  memcpy(ptr, source_ptr, size);
-}
-
 int64_t res_get_integer_from_range(struct fuzzer_state *state, const char *name, int64_t min, int64_t max)
 {
   assert(min < max);

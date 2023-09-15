@@ -16,7 +16,7 @@ private class IntegerImpl(bitWidth: Int, signed: Boolean, range: IntegerRange, v
 
   override def initInstance(formatter: SourceFormatter): Unit = {
     if (range == IntegerRange.any) {
-      formatter.writeLn(s"$varName = res_get_uint($InvokerState, $Q$varName$Q, ${bitWidth / 8});")
+      formatter.writeLn(s"$varName = res_get_named_uint($InvokerState, $Q$varName$Q, ${bitWidth / 8});")
     } else {
       formatter.writeLn(s"$varName = res_get_integer_from_range(state, $Q$varName$Q, ${range.min}, ${range.max});")
     }
