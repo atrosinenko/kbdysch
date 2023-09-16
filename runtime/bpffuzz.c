@@ -1,5 +1,6 @@
 #include "kbdysch/input.h"
 #include "kbdysch/kbdysch.h"
+#include "kbdysch/logging.h"
 #include "kbdysch/mutator-interface.h"
 #include "kbdysch/options.h"
 
@@ -158,7 +159,7 @@ static void trigger_lazy_initialization(struct fuzzer_state *state) {
   };
   ZERO_FILL_AFTER(load_attr, log_buf);
   int bpffd = INVOKE_SYSCALL(state, bpf, BPF_PROG_LOAD, (long)&load_attr, sizeof(load_attr));
-  fprintf(stderr, "%s\n", bpf_log_buf);
+  TRACE(state, "%s", bpf_log_buf);
   CHECK_THAT(bpffd >= 0);
   INVOKE_SYSCALL(state, close, bpffd);
   bpf_log_buf[0] = '\0';
@@ -225,10 +226,10 @@ int main(int argc, const char *argv[])
   int bpffd = INVOKE_SYSCALL(state, bpf, BPF_PROG_LOAD, (long)&load_attr, sizeof(load_attr));
   pth_yield(NULL);
   if (bpffd < 0) {
-    fprintf(stderr, "Cannot load eBPF program: %s\n%s\n", STRERROR(state, bpffd), bpf_log_buf);
+    TRACE(state, "Cannot load eBPF program: %s\n%s", STRERROR(state, bpffd), bpf_log_buf);
   } else {
-    fprintf(stderr, "Program fd = %d, trying to run...\n", bpffd);
-    fprintf(stderr, "Restoring EUID = 0...\n");
+    TRACE(state, "Program fd = %d, trying to run...", bpffd);
+    TRACE(state, "Restoring EUID = 0...");
     CHECK_THAT(INVOKE_SYSCALL(state, setreuid, 0L, 0L) == 0);
     union bpf_attr run_attr = {
       .test.prog_fd       = bpffd,
@@ -239,7 +240,7 @@ int main(int argc, const char *argv[])
     };
     ZERO_FILL_AFTER(run_attr, test);
     int res = INVOKE_SYSCALL(state, bpf, BPF_PROG_TEST_RUN, (long)&run_attr, sizeof(run_attr));
-    fprintf(stderr, "Errno: %s\n", STRERROR(state, res));
+    TRACE(state, "Errno: %s", STRERROR(state, res));
   }
 
   return 0;
