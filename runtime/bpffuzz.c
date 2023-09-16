@@ -1,3 +1,4 @@
+#include "kbdysch/input.h"
 #include "kbdysch/kbdysch.h"
 #include "kbdysch/options.h"
 
@@ -181,19 +182,18 @@ int main(int argc, const char *argv[])
   if (!as_root)
     CHECK_THAT(INVOKE_SYSCALL(state, setreuid, 0L, 1L) == 0);
 
-  start_forksrv();
+  res_load_whole_stdin(state);
+  ssize_t length = res_get_input_length(state);
 
-  const ssize_t length = read(STDIN_FILENO, input_buf, INPUT_LEN);
-  if (length == -1) {
-    perror("Cannot read stdin");
-    abort();
-  }
-
-  const int extra_bytes = length % 8;
   uint64_t control = 0;
-  memcpy(&control, input_buf + length - extra_bytes, extra_bytes);
-  fprintf(stderr, "Loaded %zd bytes, with %d control bytes: 0x%016llx.\n",
-          length, extra_bytes, (long long) control);
+  if (length <= sizeof(control))
+    return 0;
+  res_copy_bytes(state, &control, sizeof(control));
+  length -= sizeof(control);
+
+  if (length > sizeof(input_buf))
+    length = sizeof(input_buf);
+  res_copy_bytes(state, input_buf, length);
 
   const size_t insn_count = preprocess_program(
         (struct bpf_insn*)input_buf, length / 8, control);
