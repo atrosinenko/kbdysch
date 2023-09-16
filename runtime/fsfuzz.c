@@ -3,6 +3,7 @@
 #include "kbdysch/invoker-utils.h"
 #include "kbdysch/mutator-interface.h"
 #include "kbdysch/options.h"
+#include "kbdysch/userspace/files.h"
 
 static const int MAX_INPUT_OPS = 25;
 

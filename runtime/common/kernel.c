@@ -5,6 +5,7 @@
 #include "kbdysch/invoker-utils.h"
 #include "kbdysch/options.h"
 #include "kbdysch/userspace/btrfs.h"
+#include "kbdysch/userspace/files.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -381,41 +382,6 @@ void kernel_boot(struct fuzzer_state *state, const char *cmdline)
   mount_all(state);
   boot_complete = true;
 #endif
-}
-
-size_t kernel_read_from_file(struct fuzzer_state *state, const char *filename, const void *data, size_t size)
-{
-  int fd = CHECKED_SYSCALL(state, openat, AT_FDCWD, (long)filename, O_RDONLY, 0);
-  ssize_t res = CHECKED_SYSCALL(state, read, fd, (long)data, (long)size);
-  INVOKE_SYSCALL(state, close, fd);
-  return (size_t) res;
-}
-
-void kernel_dump_file_contents(struct fuzzer_state *state, const char *filename)
-{
-  static char contents[64 * 1024];
-  size_t length = kernel_read_from_file(state, filename, contents, sizeof(contents) - 1);
-  contents[length] = '\0';
-  TRACE(state, "=== Contents of %s ===\n%s", filename, contents);
-}
-
-void kernel_write_to_file(struct fuzzer_state *state, const char *filename, const void *data, size_t size, int write_may_fail)
-{
-  TRACE_NO_NL(state, "Writing [%s] to %s... ", data, filename);
-  int len = strlen(data);
-  int fd = CHECKED_SYSCALL(state, openat, AT_FDCWD, (long)filename, O_WRONLY, 0);
-  long err = INVOKE_SYSCALL(state, write, fd, (long)data, len);
-  if (err < 0)
-    WARN(state, "write of %d bytes failed: %d (%s)", len, err, STRERROR(state, err));
-  else
-    TRACE(state, "OK");
-  CHECK_THAT(err == len || write_may_fail);
-  INVOKE_SYSCALL(state, close, fd);
-}
-
-void kernel_write_string_to_file(struct fuzzer_state *state, const char *filename, const char *str, int write_may_fail)
-{
-  kernel_write_to_file(state, filename, str, strlen(str), write_may_fail);
 }
 
 void kernel_invoke_write_to_file(struct fuzzer_state *state)

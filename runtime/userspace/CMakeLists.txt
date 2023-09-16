@@ -6,6 +6,7 @@ include(CheckIncludeFile)
 add_library(userspace_lib STATIC
   dm.cpp
   dummy-impls.cpp
+  files.cpp
   ioctl-wrapper.cpp
 )
 # TODO Fix circular dependencies between userspace_lib and common_lib
