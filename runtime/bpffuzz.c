@@ -1,5 +1,6 @@
 #include "kbdysch/input.h"
 #include "kbdysch/kbdysch.h"
+#include "kbdysch/mutator-interface.h"
 #include "kbdysch/options.h"
 
 #include <syscall.h>
@@ -172,6 +173,7 @@ int main(int argc, const char *argv[])
         );
 
   struct fuzzer_state *state = create_state(argc, argv, NULL);
+  mutator_init();
 
   if (!is_native_invoker(state)) {
     kernel_boot(state, argv[1]);
