@@ -109,6 +109,15 @@ struct fuzzer_state *create_state(int argc, const char *argv[], stopper_func_t s
   return result;
 }
 
+// A kludgy quick-fix for link-time assertions in LKL :)
+//
+// Every harness invokes create_state() function, thus pulling
+// this object in.
+#if 1
+void __generic_xchg_called_with_bad_pointer() { abort(); }
+void wrong_size_cmpxchg() { abort(); }
+#endif
+
 void stop_processing(struct fuzzer_state *state) {
   state->stopper_func(state);
 }

@@ -23,6 +23,11 @@ else()
     add_library(common_no_lkl ALIAS common_lib)
 endif()
 
+set(LKL_INHIBIT_LINK_TIME_ASSERTIONS OFF CACHE BOOL "Inhibit link-time assertions in LKL")
+if (LKL_INHIBIT_LINK_TIME_ASSERTIONS)
+  target_compile_definitions(common_lib PRIVATE LKL_INHIBIT_LINK_TIME_ASSERTIONS)
+endif()
+
 add_executable(kbdysch-hash kbdysch-hash.c)
 target_link_libraries(kbdysch-hash common_no_lkl)
 
