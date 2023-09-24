@@ -178,14 +178,19 @@ void success_rate_variable::print(FILE *stream, unsigned var_index) {
   auto total_acc = [this](unsigned i) {
     return 0.0 + Success->get_accumulated(i) + Failure->get_accumulated(i);
   };
+  auto percent = [this, total](unsigned i) {
+    return Success->get(i) / total(i);
+  };
+  auto percent_acc = [this, total_acc](unsigned i) {
+    return Success->get_accumulated(i) / total_acc(i);
+  };
   fprintf(stderr, "Variable #%u: %s\n", var_index, Name.c_str());
   print_summary(stream, "Usage count (queue)", total_acc);
   print_summary(stream, "Usage count (all)", total);
-  print_summary(stream, "Success (queue)", [this, total_acc](unsigned i) {
-    return Success->get_accumulated(i) / total_acc(i);
-  });
-  print_summary(stream, "Success (all)", [this, total](unsigned i) {
-    return Success->get(i) / total(i);
+  print_summary(stream, "Success (queue)", percent_acc);
+  print_summary(stream, "Success (all)", percent);
+  print_summary(stream, "Success (queue-to-all)", [percent_acc, percent](unsigned i) {
+    return percent_acc(i) / percent(i);
   });
 }
 
