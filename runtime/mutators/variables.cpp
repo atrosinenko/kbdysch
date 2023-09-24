@@ -2,6 +2,8 @@
 #include "kbdysch/mutator-defs.h"
 #include "helpers.h"
 
+#include <assert.h>
+
 #include <algorithm>
 #include <cmath>
 #include <functional>
@@ -90,16 +92,19 @@ private:
                              unsigned index_in_permutation,
                              std::function<double(unsigned)> rank);
 
-  void print_summary(FILE *stream,
-                     const std::string &description,
+  void print_summary(const std::string &description,
                      std::function<double(unsigned)> rank);
 
   string_variable *Labels;
   counter_variable *Success;
   counter_variable *Failure;
 
+  unsigned NumColumns;
+  std::vector<std::string> Rows;
   std::vector<unsigned> Permutation; // scratch variable
 
+  const unsigned ColumnWidth = 30;
+  const unsigned ColumnSpacing = 2;
   const unsigned NumTopElements = 10;
 };
 
@@ -118,10 +123,10 @@ void success_rate_variable::print_label_with_rank(
 }
 
 void success_rate_variable::print_summary(
-    FILE *stream,
     const std::string &description,
     std::function<double(unsigned)> rank) {
   unsigned size = Labels->num_elements_real();
+  NumColumns += 1;
 
   Permutation.resize(size);
   for (unsigned i = 0; i < size; ++i)
@@ -139,37 +144,54 @@ void success_rate_variable::print_summary(
         return ra < rb;
       });
 
-  fprintf(stream, "  - %s:\n", description.c_str());
-  std::ostringstream out;
+  unsigned row_index = 0;
+  auto append_to_next_row = [&](const std::string &text) {
+    assert(row_index < Rows.size());
+    auto &row = Rows[row_index++];
+    row.append(text);
+    unsigned expected_size = NumColumns * ColumnWidth;
+    if (row.size() < expected_size)
+      row.append(expected_size - row.size(), ' ');
+    row.append(ColumnSpacing, ' ');
+  };
+
+  append_to_next_row(description);
+  append_to_next_row("");
+
   if (size <= 2 * NumTopElements) {
-    // A (1.00), B (1.23), C (3.45), X (99.85)
-    out << "    ";
     for (unsigned i = 0; i < size; ++i) {
+      std::ostringstream out;
       print_label_with_rank(out, i, rank);
-      if (i + 1 < size)
-        out << ", ";
+      append_to_next_row(out.str());
     }
-    out << "\n";
   } else {
-    // A (1.01), B (1.23), ...
-    // ..., U (95.12), X (99.85)
-    out << "    ";
     for (unsigned i = 0; i < NumTopElements; ++i) {
+      std::ostringstream out;
       print_label_with_rank(out, i, rank);
-      out << ", ";
+      append_to_next_row(out.str());
     }
-    out << "...\n";
-    out << "    ...";
+    append_to_next_row("");
+    append_to_next_row("...");
+    append_to_next_row("");
     for (unsigned i = size - NumTopElements; i < size; ++i) {
-      out << ", ";
+      std::ostringstream out;
       print_label_with_rank(out, i, rank);
+      append_to_next_row(out.str());
     }
-    out << "\n";
   }
-  fprintf(stream, "%s", out.str().c_str());
+
+  assert(row_index == Rows.size());
 }
 
 void success_rate_variable::print(FILE *stream, unsigned var_index) {
+  unsigned size = Labels->num_elements_real();
+  bool with_ellipsis = size > 2 * NumTopElements;
+
+  NumColumns = 0;
+  Rows.resize(with_ellipsis ? (5 + 2 * NumTopElements) : (2 + size));
+  for (auto &row : Rows)
+    row.clear();
+
   auto total = [this](unsigned i) {
     return 0.0 + Success->get(i) + Failure->get(i);
   };
@@ -182,14 +204,20 @@ void success_rate_variable::print(FILE *stream, unsigned var_index) {
   auto percent_acc = [this, total_acc](unsigned i) {
     return Success->get_accumulated(i) / total_acc(i);
   };
-  fprintf(stderr, "Variable #%u: %s\n", var_index, Name.c_str());
-  print_summary(stream, "Usage count (queue)", total_acc);
-  print_summary(stream, "Usage count (all)", total);
-  print_summary(stream, "Success (queue)", percent_acc);
-  print_summary(stream, "Success (all)", percent);
-  print_summary(stream, "Success (queue-to-all)", [percent_acc, percent](unsigned i) {
+  print_summary("Usage count (queue)", total_acc);
+  print_summary("Usage count (all)", total);
+  print_summary("Success (queue)", percent_acc);
+  print_summary("Success (all)", percent);
+  print_summary("Success (queue-to-all)", [percent_acc, percent](unsigned i) {
     return percent_acc(i) / percent(i);
   });
+
+  fprintf(stderr, "Variable #%u: %s\n\n", var_index, Name.c_str());
+  for (auto &row : Rows) {
+    while (row.back() == ' ')
+      row.pop_back();
+    fprintf(stderr, "%s\n", row.c_str());
+  }
 }
 
 success_rate_variable::~success_rate_variable() {
