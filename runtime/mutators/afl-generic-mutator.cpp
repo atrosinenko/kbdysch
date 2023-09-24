@@ -1,7 +1,3 @@
-#ifdef NDEBUG
-#undef NDEBUG
-#endif
-
 #include "kbdysch/hashing.h"
 #include "kbdysch/mutator-defs.h"
 #include "kbdysch/options.h"
@@ -31,6 +27,11 @@ DECLARE_INT_KNOB_DEF(num_best_effort_iterations,
                      "KBDYSCH_MUTATOR_NUM_BEST_EFFORT_ITERATIONS", 100)
 
 using namespace kbdysch::mutator;
+
+#ifndef NDEBUG
+// Print a better message.
+#define abort() assert(0)
+#endif
 
 struct mutator_state {
   mutator_state();

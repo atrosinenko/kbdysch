@@ -7,6 +7,13 @@ include(runtime/common/Helpers.cmake)
 set(KBDYSCH_STANDALONE_C_COMPILER   "cc"  CACHE STRING "C compiler for non-instrumented standalone executables")
 set(KBDYSCH_STANDALONE_CXX_COMPILER "c++" CACHE STRING "C++ compiler for non-instrumented standalone executables")
 set(KBDYSCH_PERFORM_AFL_TESTS OFF CACHE BOOL "Perform tests that depend on AFL++")
+set(KBDYSCH_ENABLE_ASSERTIONS ON CACHE BOOL "Enable assertions")
+
+if (KBDYSCH_ENABLE_ASSERTIONS)
+  add_compile_options(-UNDEBUG)
+else()
+  add_compile_options(-DNDEBUG)
+endif()
 
 add_definitions(-D_GNU_SOURCE)
 
