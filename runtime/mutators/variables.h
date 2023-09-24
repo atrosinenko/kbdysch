@@ -4,6 +4,7 @@
 #include "kbdysch/mutator-defs.h"
 #include "helpers.h"
 
+#include <sstream>
 #include <string>
 
 namespace kbdysch {
@@ -28,7 +29,7 @@ protected:
   variable(const std::string &name, unsigned max_num_elements, mutator_num_elements_t *num_elements_real)
       : Name(name), MaxNumElements(max_num_elements), NumElementsReal(num_elements_real) {}
 
-  virtual void print_scalar(FILE *stream, unsigned subscript) = 0;
+  virtual void print_scalar(std::ostringstream &stream, unsigned subscript) = 0;
 
   std::string Name;
 

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <iomanip>
 #include <utility>
 #include <vector>
 
@@ -24,7 +25,9 @@ public:
   }
 
   void accumulate() override;
-  void print_scalar(FILE *stream, unsigned subscript) override;
+  void print_scalar(std::ostringstream &stream, unsigned subscript) override {
+    stream << Counters[subscript] << "\t" << Accumulator[subscript];
+  }
 
   uint64_t get(unsigned index) const { return Counters[index]; }
   uint64_t get_accumulated(unsigned index) const { return Accumulator[index]; }
@@ -40,12 +43,6 @@ void counter_variable::accumulate() {
     Accumulator[i] += AuxCounters[i];
 }
 
-void counter_variable::print_scalar(FILE *stream, unsigned subscript) {
-  fprintf(stream, "%lu\t%lu",
-          (unsigned long)Counters[subscript],
-          (unsigned long)Accumulator[subscript]);
-}
-
 class string_variable : public variable {
 public:
   string_variable(std::string &&name,
@@ -58,18 +55,16 @@ public:
 
   void accumulate() override {}
 
-  void print_scalar(FILE *stream, unsigned subscript) override;
+  void print_scalar(std::ostringstream &stream, unsigned subscript) override {
+    char *str = Strings[subscript];
+    str[MaxStringLength - 1] = '\0';
+    stream << str;
+  }
 
 private:
   std::vector<char *> Strings;
   unsigned MaxStringLength;
 };
-
-void string_variable::print_scalar(FILE *stream, unsigned subscript) {
-  char *str = Strings[subscript];
-  str[MaxStringLength - 1] = '\0';
-  fprintf(stream, "%s", str);
-}
 
 class success_rate_variable : public variable {
 public:
@@ -86,12 +81,12 @@ public:
   ~success_rate_variable();
 
 protected:
-  void print_scalar(FILE *stream, unsigned subscript) override {
+  void print_scalar(std::ostringstream &stream, unsigned subscript) override {
     abort(); // Not implemented
   }
 
 private:
-  void print_label_with_rank(FILE *stream,
+  void print_label_with_rank(std::ostringstream &stream,
                              unsigned index_in_permutation,
                              std::function<double(unsigned)> rank);
 
@@ -115,10 +110,11 @@ void success_rate_variable::accumulate() {
 }
 
 void success_rate_variable::print_label_with_rank(
-    FILE *stream, unsigned index_in_permutation, std::function<double(unsigned)> rank) {
+    std::ostringstream &stream, unsigned index_in_permutation, std::function<double(unsigned)> rank) {
   unsigned index = Permutation[index_in_permutation];
   Labels->print_scalar(stream, index);
-  fprintf(stream, " (%.2f)", rank(index));
+
+  stream << " (" << std::setprecision(2) << std::fixed << rank(index) << ")";
 }
 
 void success_rate_variable::print_summary(
@@ -144,31 +140,33 @@ void success_rate_variable::print_summary(
       });
 
   fprintf(stream, "  - %s:\n", description.c_str());
+  std::ostringstream out;
   if (size <= 2 * NumTopElements) {
     // A (1.00), B (1.23), C (3.45), X (99.85)
-    fprintf(stream, "    ");
+    out << "    ";
     for (unsigned i = 0; i < size; ++i) {
-      print_label_with_rank(stream, i, rank);
+      print_label_with_rank(out, i, rank);
       if (i + 1 < size)
-        fprintf(stream, ", ");
+        out << ", ";
     }
-    fprintf(stream, "\n");
+    out << "\n";
   } else {
     // A (1.01), B (1.23), ...
     // ..., U (95.12), X (99.85)
-    fprintf(stream, "    ");
+    out << "    ";
     for (unsigned i = 0; i < NumTopElements; ++i) {
-      print_label_with_rank(stream, i, rank);
-      fprintf(stream, ", ");
+      print_label_with_rank(out, i, rank);
+      out << ", ";
     }
-    fprintf(stream, "...\n");
-    fprintf(stream, "    ...");
+    out << "...\n";
+    out << "    ...";
     for (unsigned i = size - NumTopElements; i < size; ++i) {
-      fprintf(stream, ", ");
-      print_label_with_rank(stream, i, rank);
+      out << ", ";
+      print_label_with_rank(out, i, rank);
     }
-    fprintf(stream, "\n");
+    out << "\n";
   }
+  fprintf(stream, "%s", out.str().c_str());
 }
 
 void success_rate_variable::print(FILE *stream, unsigned var_index) {
@@ -299,14 +297,17 @@ void variable::print(FILE *stream, unsigned var_index) {
   unsigned num_elements = num_elements_real();
   if (num_elements == 1) {
     fprintf(stream, "Variable #%u:\t", var_index);
-    print_scalar(stream, 0);
-    fprintf(stream, "\t - %s\n", Name.c_str());
+    std::ostringstream line;
+    print_scalar(line, 0);
+    line << "\t - " << Name;
+    fprintf(stream, "%s\n", line.str().c_str());
   } else {
     fprintf(stream, "Variable #%u: %s\n", var_index, Name.c_str());
     for (unsigned i = 0; i < num_elements; ++i) {
-      fprintf(stream, " - [%d]\t", i);
-      print_scalar(stream, i);
-      fprintf(stream, "\n");
+      std::ostringstream line;
+      line << " - [" << i << "]\t";
+      print_scalar(line, i);
+      fprintf(stream, "%s\n", line.str().c_str());
     }
   }
 }
