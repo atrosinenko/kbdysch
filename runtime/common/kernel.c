@@ -124,7 +124,7 @@ static void unmount_all(struct fuzzer_state *state) {
     if (strncmp(partition->fstype, FSTYPE_RAW, strlen(FSTYPE_RAW)) == 0) {
       continue;
     }
-    int ret = lkl_umount_dev(partition->blockdev.lkl_disk_id, 0, 0, 1);
+    int ret = lkl_umount_dev(partition->blockdev.lkl_disk_id, 0, 0, 10 * 1000 /* prevent unstable results if too small timeout */);
     if (ret) {
       // TODO
       WARN(state, "Cannot unmount #%d, type = %s (%s), just exiting...",
@@ -132,6 +132,8 @@ static void unmount_all(struct fuzzer_state *state) {
       stop_processing(state);
     }
   }
+  INVOKE_SYSCALL_0(state, sync);
+  kernel_write_string_to_file(state, "/proc/sys/vm/drop_caches", "3", false);
 }
 
 static void mount_all(struct fuzzer_state *state)
