@@ -1,9 +1,9 @@
 
 Usage count (queue)             Usage count (all)             Success (queue)               Success (all)                 Success (queue-to-all)
 
-never_0 (0.00)                  never_0 (0.00)                never_0 (-nan)                never_0 (-nan)                never_0 (-nan)
-never_2 (2.00)                  never_2 (2.00)                never_2 (0.00)                never_2 (0.00)                never_2 (-nan)
-half_2 (2.00)                   half_2 (2.00)                 rare_3 (0.33)                 rare_3 (0.33)                 always_3 (1.00)
-always_3 (3.00)                 always_3 (3.00)               half_2 (0.50)                 half_2 (0.50)                 frequent_4 (1.00)
-rare_3 (3.00)                   rare_3 (3.00)                 frequent_4 (0.75)             frequent_4 (0.75)             rare_3 (1.00)
-frequent_4 (4.00)               frequent_4 (4.00)             always_3 (1.00)               always_3 (1.00)               half_2 (1.00)
+half_2 (2.00)                   half_2 (2.00)                 rare_3 (0.33)                 rare_3 (0.33)                 frequent_4 (1.00)
+rare_3 (3.00)                   rare_3 (3.00)                 half_2 (0.50)                 half_2 (0.50)                 rare_3 (1.00)
+frequent_4 (4.00)               frequent_4 (4.00)             frequent_4 (0.75)             frequent_4 (0.75)             half_2 (1.00)
+Never executed: never_0 (0)
+Always failing: never_2 (2)
+Always succeding: always_3 (3)

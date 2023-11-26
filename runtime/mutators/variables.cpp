@@ -92,8 +92,12 @@ private:
                              unsigned index_in_permutation,
                              std::function<double(unsigned)> rank);
 
-  void print_summary(const std::string &description,
-                     std::function<double(unsigned)> rank);
+  void add_column(const std::string &description,
+                  std::function<double(unsigned)> rank);
+
+  void print_subset(std::ostringstream &stream,
+                    const std::string &description,
+                    std::function<bool(unsigned)> predicate);
 
   string_variable *Labels;
   counter_variable *Success;
@@ -101,7 +105,11 @@ private:
 
   unsigned NumColumns;
   std::vector<std::string> Rows;
-  std::vector<unsigned> Permutation; // scratch variable
+
+  // Between calls to add_column(), should contain an arbitrary
+  // permutation of indexes of those rows that should be printed
+  // in the main table.
+  std::vector<unsigned> Permutation;
 
   const unsigned ColumnWidth = 30;
   const unsigned ColumnSpacing = 2;
@@ -122,26 +130,20 @@ void success_rate_variable::print_label_with_rank(
   stream << " (" << std::setprecision(2) << std::fixed << rank(index) << ")";
 }
 
-void success_rate_variable::print_summary(
+void success_rate_variable::add_column(
     const std::string &description,
     std::function<double(unsigned)> rank) {
-  unsigned size = Labels->num_elements_real();
+  unsigned size = Permutation.size();
   NumColumns += 1;
 
-  Permutation.resize(size);
-  for (unsigned i = 0; i < size; ++i)
-    Permutation[i] = i;
+  // Just make the results a bit more stable in case multiple rows
+  // have equal ranks...
+  std::sort(Permutation.begin(), Permutation.end());
 
   std::sort(
       Permutation.begin(), Permutation.end(),
       [rank](unsigned a, unsigned b) {
-        double ra = rank(a);
-        double rb = rank(b);
-        if (std::isnan(ra))
-          ra = -1;
-        if (std::isnan(rb))
-          rb = -1;
-        return ra < rb;
+        return rank(a) < rank(b);
       });
 
   unsigned row_index = 0;
@@ -183,14 +185,52 @@ void success_rate_variable::print_summary(
   assert(row_index == Rows.size());
 }
 
-void success_rate_variable::print(FILE *stream, unsigned var_index) {
+void success_rate_variable::print_subset(
+    std::ostringstream &stream,
+    const std::string &description,
+    std::function<bool(unsigned)> predicate) {
   unsigned size = Labels->num_elements_real();
-  bool with_ellipsis = size > 2 * NumTopElements;
+  bool found = false;
 
-  NumColumns = 0;
-  Rows.resize(with_ellipsis ? (5 + 2 * NumTopElements) : (2 + size));
+  stream << description << ": ";
+
+  for (unsigned i = 0; i < size; ++i) {
+    if (!predicate(i))
+      continue;
+
+    if (found)
+      stream << ", ";
+    found = true;
+
+    unsigned num_occurrences = Success->get(i) + Failure->get(i);
+    Labels->print_scalar(stream, i);
+    stream << " (" << num_occurrences << ")";
+  }
+
+  if (!found)
+    stream << "(none)";
+  stream << "\n";
+}
+
+void success_rate_variable::print(FILE *stream, unsigned var_index) {
+  unsigned total_size = Labels->num_elements_real();
+
+  Permutation.clear();
+  for (unsigned i = 0; i < total_size; ++i) {
+    if (Success->get(i) != 0 && Failure->get(i) != 0)
+      Permutation.push_back(i);
+  }
+  unsigned total_table_rows = Permutation.size();
+  bool with_ellipsis = total_table_rows > 2 * NumTopElements;
+
+  if (with_ellipsis)
+    Rows.resize(5 + 2 * NumTopElements);
+  else
+    Rows.resize(2 + total_table_rows);
+
   for (auto &row : Rows)
     row.clear();
+  NumColumns = 0;
 
   auto total = [this](unsigned i) {
     return 0.0 + Success->get(i) + Failure->get(i);
@@ -204,20 +244,36 @@ void success_rate_variable::print(FILE *stream, unsigned var_index) {
   auto percent_acc = [this, total_acc](unsigned i) {
     return Success->get_accumulated(i) / total_acc(i);
   };
-  print_summary("Usage count (queue)", total_acc);
-  print_summary("Usage count (all)", total);
-  print_summary("Success (queue)", percent_acc);
-  print_summary("Success (all)", percent);
-  print_summary("Success (queue-to-all)", [percent_acc, percent](unsigned i) {
+
+  add_column("Usage count (queue)", total_acc);
+  add_column("Usage count (all)", total);
+  add_column("Success (queue)", percent_acc);
+  add_column("Success (all)", percent);
+  add_column("Success (queue-to-all)", [percent_acc, percent](unsigned i) {
     return percent_acc(i) / percent(i);
   });
 
+  std::ostringstream footer;
+  print_subset(footer, "Never executed", [this](unsigned i) {
+    return Success->get(i) == 0 && Failure->get(i) == 0;
+  });
+  print_subset(footer, "Always failing", [this](unsigned i) {
+    return Success->get(i) == 0 && Failure->get(i) != 0;
+  });
+  print_subset(footer, "Always succeding", [this](unsigned i) {
+    return Success->get(i) != 0 && Failure->get(i) == 0;
+  });
+
+  // Header
   fprintf(stderr, "Variable #%u: %s\n\n", var_index, Name.c_str());
+  // Main table
   for (auto &row : Rows) {
     while (row.back() == ' ')
       row.pop_back();
     fprintf(stderr, "%s\n", row.c_str());
   }
+  // Exceptional cases
+  fprintf(stderr, "%s", footer.str().c_str());
 }
 
 success_rate_variable::~success_rate_variable() {
