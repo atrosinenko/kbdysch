@@ -96,6 +96,16 @@ void res_mark_section_start(struct fuzzer_state *state);
 void res_mark_consumed_reference(struct fuzzer_state *state,
                                  int kind, int id, unsigned id_bytes);
 
+/**
+ * Utility function for mutator interface: call it right after
+ * reading the data to be patched.
+ */
+void res_propose_change_here(struct fuzzer_state *state,
+                             uint64_t replacement, unsigned size);
+
+void res_propose_change_if_different(struct fuzzer_state *state, unsigned offset,
+                                     uint64_t replacement, unsigned size);
+
 #ifdef __cplusplus
 }
 #endif

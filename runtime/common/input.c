@@ -93,3 +93,16 @@ void res_mark_consumed_reference(struct fuzzer_state *state,
   unsigned offset = res_get_cur_offset(state) - id_bytes;
   mutator_ref_resource(kind, id, id_bytes, offset);
 }
+
+void res_propose_change_here(struct fuzzer_state *state,
+                             uint64_t replacement, unsigned size) {
+  unsigned offset = res_get_cur_offset(state) - size;
+  mutator_propose_change(offset, replacement, size);
+}
+
+void res_propose_change_if_different(struct fuzzer_state *state, unsigned offset,
+                                     uint64_t replacement, unsigned size) {
+  void *current_data = &state->constant_state.input_buffer[offset];
+  if (memcmp(&current_data, &replacement, size))
+    mutator_propose_change(offset, replacement, size);
+}
