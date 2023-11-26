@@ -5,6 +5,7 @@
 DECLARE_BITMASK_KNOB(skip_block_mask, "SKIPPED_BLOCKS")
 DECLARE_INT_KNOB_DEF(min_consume, "MIN_CONSUME", 1)
 DECLARE_INT_KNOB_DEF(exit_after_max_errors, "MAX_ERRORS", 1000000)
+DECLARE_BOOL_KNOB(round_block_to_pow2, "ROUND_BLOCK_TO_POW2")
 
 void exit_if_too_many_errors(struct fuzzer_state *state) {
   if (get_num_errors_returned(state) > exit_after_max_errors) {
@@ -31,6 +32,9 @@ void skip_block_if_requested(struct fuzzer_state *state, unsigned block_index) {
 
 void align_next_block(struct fuzzer_state *state, int block_index,
                       unsigned decoded_bytes) {
+  if (!round_block_to_pow2)
+    return;
+
   size_t consume_total = min_consume;
   while (consume_total < decoded_bytes)
     consume_total *= 2;
