@@ -29,14 +29,14 @@ public:
   // Reimplement if needs_add_buf() returns false
   virtual void render_next_mutation(test_case_storage &output,
                                     buffer_ref input, journal_data &input_journal) {
-    abort();
+    FATAL_NOT_IMPLEMENTED("render_next_mutation (simple)");
   }
 
   // Reimplement if needs_add_buf() returns true
   virtual void render_next_mutation(test_case_storage &output,
                                     buffer_ref input, journal_data &input_journal,
                                     buffer_ref add_buf, journal_data &add_journal) {
-    abort();
+    FATAL_NOT_IMPLEMENTED("render_next_mutation (with extra input)");
   }
 
   virtual ~mutation_strategy() {}

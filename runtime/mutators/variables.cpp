@@ -84,7 +84,7 @@ public:
 
 protected:
   void print_scalar(std::ostringstream &stream, unsigned subscript) override {
-    abort(); // Not implemented
+    FATAL_NOT_IMPLEMENTED("print_scalar");
   }
 
 private:

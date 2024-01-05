@@ -22,11 +22,15 @@ FILE *create_temp_file(const char *prefix, const char *suffix);
 #define DECL_WITH_TYPE(type, new_name, ptr) \
   type *new_name = (type *)(ptr)
 
-#define FATAL(fmt, ...)                                                        \
-  do {                                                                         \
-    fprintf(stderr, "MUTATOR: %s: %d: " fmt, __FILE__, __LINE__, __VA_ARGS__); \
-    abort();                                                                   \
+#define FATAL(fmt, ...)                                                       \
+  do {                                                                        \
+    fprintf(stderr, "\n\n"); /* account for AFL's own UI. */                  \
+    fprintf(stderr, "MUTATOR FATAL ERROR at %s:%d\n", __FILE__, __LINE__);    \
+    fprintf(stderr, "MESSAGE: " fmt, __VA_ARGS__);                            \
+    abort();                                                                  \
   } while (0)
+
+#define FATAL_NOT_IMPLEMENTED(what) FATAL("Not implemented: %s", (what))
 
 #define ERR(...)                                         \
   do {                                                   \

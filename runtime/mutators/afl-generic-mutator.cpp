@@ -28,11 +28,6 @@ DECLARE_INT_KNOB_DEF(num_best_effort_iterations,
 
 using namespace kbdysch::mutator;
 
-#ifndef NDEBUG
-// Print a better message.
-#define abort() assert(0)
-#endif
-
 struct mutator_state {
   mutator_state();
 
@@ -219,7 +214,7 @@ size_t afl_custom_fuzz(void *data, uint8_t *buf, size_t buf_size, uint8_t **out_
     ERR("Trying to save log...\n");
     if (!save_log_from_shm(state, state->input.as_data(), "best effort mode")) {
       state->create_debug_dump();
-      abort();
+      FATAL("Cannot save log (input length = %zu)", state->input.size());
     }
     accumulate_important_data(state);
     state->current_journal.load_journal(state->input.as_data());
@@ -228,7 +223,7 @@ size_t afl_custom_fuzz(void *data, uint8_t *buf, size_t buf_size, uint8_t **out_
     ERR("Trying to save log as-is...\n");
     if (!save_log_from_shm(state, buffer_ref(), "best effort mode")) {
       state->create_debug_dump();
-      abort();
+      FATAL("Cannot save log (input length = %zu)", state->input.size());
     }
     accumulate_important_data(state);
     state->record_log_next_action = mutator_state::RECORD_LOG_NONE;
