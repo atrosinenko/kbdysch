@@ -301,7 +301,8 @@ uint8_t afl_custom_queue_new_entry(void *data, const char *filename_new_queue,
 
   bool log_saved = save_log_from_shm(state, test_case.as_data(), filename_new_queue);
   if (!log_saved && !strstr(filename_new_queue, ",orig:"))
-    FATAL("Unexpected hash: %s\n", filename_new_queue);
+    FATAL("Unexpected hash: length=%zu, filename=%s\n",
+          test_case.size(), filename_new_queue);
   // Do not initialize too early
   if (log_saved)
     accumulate_important_data(state);

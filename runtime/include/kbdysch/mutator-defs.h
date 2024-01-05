@@ -112,7 +112,8 @@ struct mutator_log_propose_change {
 };
 #pragma pack(pop)
 
-#define MUTATOR_MAX_TEST_CASE_LENGTH (1 << 20)
+// Should be equal to MAX_INPUT_LEN
+#define MUTATOR_MAX_TEST_CASE_LENGTH (1 << 16)
 
 #define MUTATOR_MAX_VARIABLES 100
 #define MUTATOR_SHM_VARS_BYTES 65536

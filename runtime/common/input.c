@@ -25,6 +25,8 @@ void res_load_whole_stdin(struct fuzzer_state *state) {
     perror("Cannot read input from stdin");
     abort();
   }
+
+  assert(MAX_INPUT_LEN == MUTATOR_MAX_TEST_CASE_LENGTH); // statically known
   TRACE(state, "Read %zu bytes of input (max %u).", state->constant_state.length, MAX_INPUT_LEN);
   mutator_init_input(state);
   for (int id = 0; id < state->current_state.file_name_count; ++id)
