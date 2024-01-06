@@ -33,8 +33,8 @@ uint8_t *dm_configurator::alloc_raw(unsigned alloc_size) {
 
 uint8_t *dm_configurator::get_raw_at(unsigned offset, unsigned size) {
   assert(offset < ArgStorage.size());
-  assert(size < ArgStorage.size());
-  assert(offset + size< ArgStorage.size());
+  assert(size <= ArgStorage.size());
+  assert(offset + size <= ArgStorage.size());
 
   return &ArgStorage[offset];
 }
