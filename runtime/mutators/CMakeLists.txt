@@ -6,7 +6,6 @@ add_library(afl-generic-mutator SHARED
   journal.cpp
   mutations.cpp
   variables.cpp
-  ../common/options.c
 )
 target_link_libraries(afl-generic-mutator base)
 

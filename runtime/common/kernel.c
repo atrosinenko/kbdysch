@@ -1,9 +1,9 @@
+#include "kbdysch/base/options.h"
 #include "kbdysch/kbdysch.h"
 
 #include "kbdysch/block.h"
 #include "kbdysch/internal-defs.h"
 #include "kbdysch/invoker-utils.h"
-#include "kbdysch/options.h"
 #include "kbdysch/userspace/btrfs.h"
 #include "kbdysch/userspace/files.h"
 

@@ -1,6 +1,6 @@
+#include "kbdysch/base/options.h"
 #include "kbdysch/kbdysch.h"
 #include "kbdysch/invoker-utils.h"
-#include "kbdysch/options.h"
 
 DECLARE_BITMASK_KNOB(skip_block_mask, "SKIPPED_BLOCKS")
 DECLARE_INT_KNOB_DEF(min_consume, "MIN_CONSUME", 1)

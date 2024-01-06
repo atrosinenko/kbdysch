@@ -1,8 +1,8 @@
+#include "kbdysch/base/options.h"
 #include "kbdysch/input.h"
 #include "kbdysch/kbdysch.h"
 #include "kbdysch/invoker-utils.h"
 #include "kbdysch/mutator-interface.h"
-#include "kbdysch/options.h"
 
 #include <fcntl.h>
 #include <linux/fuse.h>

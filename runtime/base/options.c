@@ -1,4 +1,4 @@
-#include "kbdysch/options.h"
+#include "kbdysch/base/options.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -29,11 +29,4 @@ int get_int_knob(const char *name, int default_value) {
 const char *get_string_knob(const char *name, const char *default_value) {
   const char *str = get_config(name);
   return str ? str : default_value;
-}
-
-void show_help_and_exit_if_needed(int argc, const char *argv[], const char *help_message) {
-  if (argc == 1) {
-    fprintf(stderr, help_message, argv[0]);
-    exit(1);
-  }
 }

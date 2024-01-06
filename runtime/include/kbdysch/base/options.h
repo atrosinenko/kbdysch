@@ -1,7 +1,7 @@
-#ifndef KBDYSCH_OPTIONS_H
-#define KBDYSCH_OPTIONS_H
+#ifndef KBDYSCH_BASE_OPTIONS_H
+#define KBDYSCH_BASE_OPTIONS_H
 
-#include "kbdysch/common-defs.h"
+#include "kbdysch/base/base-defs.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -10,29 +10,7 @@
 extern "C" {
 #endif
 
-/// \defgroup usage_help
-/// @{
-
-#define USAGE_WITH_ARGS(args_str) "%1$s " args_str "\n"
-#define USAGE_THEN_DO(descr_str)  "\t" descr_str "\n"
-#define USAGE_RUN_NATIVELY \
-    USAGE_WITH_ARGS("native") \
-    USAGE_THEN_DO("Apply to host kernel")
-#define USAGE_LKL_SIMPLE \
-    USAGE_WITH_ARGS("<kernel command line>") \
-    USAGE_THEN_DO  ("Run test on Linux Kernel Library")
-
-/**
- * @brief Either continues execution or shows the help message and exits
- * @param argc         `argc` passed to `main()`
- * @param argv         `argv` passed to `main()`
- * @param help_message Help message to show if needed
- */
-void show_help_and_exit_if_needed(int argc, const char *argv[], const char *help_message);
-
-/// @}
-
-/// \defgroup knobs Retrieving configuretion parameters
+/// \defgroup knobs Retrieving configuration parameters
 /// @{
 
 typedef uint64_t bitmask_t;
@@ -62,4 +40,4 @@ const char *get_string_knob(const char *name, const char *default_value);
 }
 #endif
 
-#endif // KBDYSCH_OPTIONS_H
+#endif // KBDYSCH_BASE_OPTIONS_H

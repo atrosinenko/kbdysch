@@ -1,8 +1,8 @@
+#include "kbdysch/base/options.h"
 #include "kbdysch/input.h"
 #include "kbdysch/kbdysch.h"
 #include "kbdysch/logging.h"
 #include "kbdysch/mutator-interface.h"
-#include "kbdysch/options.h"
 
 #include <syscall.h>
 #include <linux/bpf.h>

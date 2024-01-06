@@ -3,7 +3,6 @@
 #include "kbdysch/invoker-utils.h"
 #include "kbdysch/kbdysch.h"
 #include "kbdysch/mutator-interface.h"
-#include "kbdysch/options.h"
 #include "kbdysch/userspace/dm.h"
 #include "kbdysch/userspace/files.h"
 #include "kbdysch/userspace/ioctl-wrapper.h"

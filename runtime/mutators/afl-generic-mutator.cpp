@@ -1,6 +1,6 @@
 #include "kbdysch/base/hashing.h"
+#include "kbdysch/base/options.h"
 #include "kbdysch/mutator-defs.h"
-#include "kbdysch/options.h"
 #include "afl-interface-decls.h"
 #include "helpers.h"
 #include "journal.h"

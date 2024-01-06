@@ -1,6 +1,8 @@
 #ifndef KBDYSCH_COMMON_DEFS_H
 #define KBDYSCH_COMMON_DEFS_H
 
+#include "kbdysch/base/base-defs.h"
+
 // Hack preventing LKL's BPF definitions from interfering with host ones
 #define __LKL__LINUX_BPF_H__
 union lkl_bpf_attr;
@@ -30,9 +32,6 @@ struct fuzzer_state;
 typedef char filename_t[MAX_FILE_NAME_LEN];
 typedef char string_t[MAX_STRING_LEN];
 typedef uint8_t buffer_t[MAX_BUFFER_LEN + WATERMARK_SIZE];
-
-#define CONSTRUCTOR(unique_name) \
-  static void __attribute__((constructor)) unique_name(void)
 
 // For raw buffers that could possibly contain aligned structures
 #define ALIGNED_ENOUGH __attribute__((aligned(64)))

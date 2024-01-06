@@ -171,6 +171,28 @@ static inline long checked_syscall_impl(
 /// Whether `x` fits in 32 bits
 #define IS_U32(x) (((x) & ~0xffffffffLLu) == 0)
 
+/// \defgroup usage_help
+/// @{
+
+#define USAGE_WITH_ARGS(args_str) "%1$s " args_str "\n"
+#define USAGE_THEN_DO(descr_str)  "\t" descr_str "\n"
+#define USAGE_RUN_NATIVELY \
+    USAGE_WITH_ARGS("native") \
+    USAGE_THEN_DO("Apply to host kernel")
+#define USAGE_LKL_SIMPLE \
+    USAGE_WITH_ARGS("<kernel command line>") \
+    USAGE_THEN_DO  ("Run test on Linux Kernel Library")
+
+/**
+ * @brief Either continues execution or shows the help message and exits
+ * @param argc         `argc` passed to `main()`
+ * @param argv         `argv` passed to `main()`
+ * @param help_message Help message to show if needed
+ */
+void show_help_and_exit_if_needed(int argc, const char *argv[], const char *help_message);
+
+/// @}
+
 #ifdef __cplusplus
 }
 #endif

@@ -14,4 +14,5 @@
 
 add_library(base STATIC
   hashing.c
+  options.c
 )

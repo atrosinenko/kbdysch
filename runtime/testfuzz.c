@@ -1,7 +1,7 @@
+#include "kbdysch/base/options.h"
 #include "kbdysch/kbdysch.h"
 #include "kbdysch/invoker-utils.h"
 #include "kbdysch/mutator-interface.h"
-#include "kbdysch/options.h"
 
 DECLARE_BOOL_KNOB(populate_success_rate, "POPULATE_SUCCESS_RATE")
 DEBUG_COUNTER(num_tags, "Number of %-prefixed tags processed")

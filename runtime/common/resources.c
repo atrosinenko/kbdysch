@@ -1,10 +1,10 @@
 #include "kbdysch/kbdysch.h"
 
 #include "kbdysch/base/hashing.h"
+#include "kbdysch/base/options.h"
 #include "kbdysch/internal-defs.h"
 #include "kbdysch/invoker-utils.h"
 #include "kbdysch/mutator-interface.h"
-#include "kbdysch/options.h"
 
 #include <stdint.h>
 #include <unistd.h>

@@ -1,6 +1,6 @@
 #include "helpers.h"
 
-#include "kbdysch/options.h"
+#include "kbdysch/base/options.h"
 
 #include <errno.h>
 #include <fcntl.h>

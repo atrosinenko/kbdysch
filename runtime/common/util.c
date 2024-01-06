@@ -1,7 +1,7 @@
 #include "kbdysch/kbdysch.h"
 
+#include "kbdysch/base/options.h"
 #include "kbdysch/internal-defs.h"
-#include "kbdysch/options.h"
 
 #include <assert.h>
 #include <sys/mman.h>
@@ -155,4 +155,11 @@ void dump_to_file(const char *dump_file_name, const void *data, size_t size)
   CHECK_THAT(write(dump_fd, data, size) == size);
   close(dump_fd);
   fprintf(stderr, "OK\n");
+}
+
+void show_help_and_exit_if_needed(int argc, const char *argv[], const char *help_message) {
+  if (argc == 1) {
+    fprintf(stderr, help_message, argv[0]);
+    exit(1);
+  }
 }
