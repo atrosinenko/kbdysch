@@ -16,11 +16,6 @@ target_link_libraries(common_lib base)
 if (USE_LKL)
     target_compile_definitions(common_lib PUBLIC -DUSE_LKL)
     target_link_libraries(common_lib lkl)
-
-    add_library(common_no_lkl STATIC ${COMMON_LIB_SOURCES})
-    target_link_libraries(common_no_lkl base)
-else()
-    add_library(common_no_lkl ALIAS common_lib)
 endif()
 
 set(LKL_INHIBIT_LINK_TIME_ASSERTIONS OFF CACHE BOOL "Inhibit link-time assertions in LKL")
