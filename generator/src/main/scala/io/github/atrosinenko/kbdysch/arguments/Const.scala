@@ -1,5 +1,6 @@
 package io.github.atrosinenko.kbdysch.arguments
 
+import io.github.atrosinenko.kbdysch.InvokerConstants._
 import io.github.atrosinenko.kbdysch.{Descriptions, SourceFormatter}
 
 final case class Const(value: String, tpe: ArgDescriptionConstructor) extends ArgDescriptionConstructor {
@@ -20,6 +21,7 @@ private class ConstImpl(value: String, tpe: ArgDescription, val ctx: GenContext)
     tpe.requiredLocalVariables()
 
   override def initInstance(formatter: SourceFormatter): Unit = {
+    formatter.writeLn(s"INVOKER_TRACE(state, $Q  Constant: $varName = $value$Q);")
     formatter.writeLn(s"$varName = $value;")
   }
 
