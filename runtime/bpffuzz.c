@@ -165,6 +165,28 @@ static void trigger_lazy_initialization(struct fuzzer_state *state) {
   bpf_log_buf[0] = '\0';
 }
 
+static void create_some_maps(struct fuzzer_state *state) {
+  for (int type = 1; type <= 29; ++type) {
+    int count = 0;
+    for (int key_size = 1; key_size <= 16; key_size *= 2) {
+      for (int value_size = 1; value_size <= 32; value_size *= 2) {
+        union bpf_attr attr = {
+            .map_type = type,
+            .key_size = key_size,
+            .value_size = value_size,
+            .max_entries = 128,
+        };
+        ZERO_FILL_AFTER(attr, max_entries);
+        long res = INVOKE_SYSCALL(state, bpf, BPF_MAP_CREATE, (long)&attr, sizeof(attr));
+        if (res >= 0)
+          ++count;
+      }
+    }
+    if (count > 0)
+      TRACE(state, "type=%d: %d maps created", type, count);
+  }
+}
+
 int main(int argc, const char *argv[])
 {
   show_help_and_exit_if_needed(
@@ -184,6 +206,8 @@ int main(int argc, const char *argv[])
 
   if (!as_root)
     CHECK_THAT(INVOKE_SYSCALL(state, setreuid, 0L, 1L) == 0);
+
+  create_some_maps(state);
 
   res_load_whole_stdin(state);
   ssize_t length = res_get_input_length(state);
