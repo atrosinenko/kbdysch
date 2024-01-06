@@ -13,6 +13,7 @@
 #               on any supported host system).
 
 add_library(base STATIC
+  diagnostics.c
   hashing.c
   options.c
 )
