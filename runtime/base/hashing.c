@@ -1,4 +1,4 @@
-#include "kbdysch/hashing.h"
+#include "kbdysch/base/hashing.h"
 
 void kbdysch_compute_hash(char *out, const uint8_t *data, size_t size) {
   const uint64_t MULT = UINT64_C(1000000007);

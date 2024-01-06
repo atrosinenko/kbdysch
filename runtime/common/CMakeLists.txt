@@ -1,6 +1,5 @@
 set(COMMON_LIB_SOURCES
   block.c
-  hashing.c
   hugepages.c
   input.c
   invoker-helpers.c
@@ -14,11 +13,13 @@ set(COMMON_LIB_SOURCES
 )
 
 add_library(common_lib STATIC ${COMMON_LIB_SOURCES})
+target_link_libraries(common_lib base)
 if (USE_LKL)
     target_compile_definitions(common_lib PUBLIC -DUSE_LKL)
     target_link_libraries(common_lib lkl)
 
     add_library(common_no_lkl STATIC ${COMMON_LIB_SOURCES})
+    target_link_libraries(common_no_lkl base)
 else()
     add_library(common_no_lkl ALIAS common_lib)
 endif()
@@ -29,7 +30,7 @@ if (LKL_INHIBIT_LINK_TIME_ASSERTIONS)
 endif()
 
 add_executable(kbdysch-hash kbdysch-hash.c)
-target_link_libraries(kbdysch-hash common_no_lkl)
+target_link_libraries(kbdysch-hash base)
 
 if (FAKE_TIME)
   add_library(fake_time OBJECT fake_time.c)

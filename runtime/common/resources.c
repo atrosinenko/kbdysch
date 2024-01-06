@@ -1,6 +1,6 @@
 #include "kbdysch/kbdysch.h"
 
-#include "kbdysch/hashing.h"
+#include "kbdysch/base/hashing.h"
 #include "kbdysch/internal-defs.h"
 #include "kbdysch/invoker-utils.h"
 #include "kbdysch/mutator-interface.h"

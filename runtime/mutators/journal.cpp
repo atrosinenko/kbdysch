@@ -1,5 +1,5 @@
+#include "kbdysch/base/hashing.h"
 #include "journal.h"
-#include "kbdysch/hashing.h"
 
 #include <algorithm>
 

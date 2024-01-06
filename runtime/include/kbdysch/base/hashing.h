@@ -1,5 +1,5 @@
-#ifndef KBDYSCH_HASHING_H
-#define KBDYSCH_HASHING_H
+#ifndef KBDYSCH_BASE_HASHING_H
+#define KBDYSCH_BASE_HASHING_H
 
 #include <memory.h>
 #include <stdint.h>
@@ -35,4 +35,4 @@ static inline char to_hex(unsigned n) {
 }
 #endif
 
-#endif // KBDYSCH_HASHING_H
+#endif // KBDYSCH_BASE_HASHING_H

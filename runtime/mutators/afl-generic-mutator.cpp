@@ -1,4 +1,4 @@
-#include "kbdysch/hashing.h"
+#include "kbdysch/base/hashing.h"
 #include "kbdysch/mutator-defs.h"
 #include "kbdysch/options.h"
 #include "afl-interface-decls.h"

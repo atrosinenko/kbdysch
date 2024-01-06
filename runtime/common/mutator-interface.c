@@ -1,6 +1,6 @@
+#include "kbdysch/base/hashing.h"
 #include "kbdysch/mutator-interface.h"
 #include "kbdysch/mutator-defs.h"
-#include "kbdysch/hashing.h"
 #include "kbdysch/logging.h"
 
 // FIXME factor out: input-data.h

@@ -1,6 +1,8 @@
 #ifndef KBDYSCH_MUTATOR_DEFS_H
 #define KBDYSCH_MUTATOR_DEFS_H
 
+#include "kbdysch/base/hashing.h"
+
 #include <stdint.h>
 
 #ifdef __cplusplus

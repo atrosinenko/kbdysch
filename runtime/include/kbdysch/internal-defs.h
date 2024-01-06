@@ -1,9 +1,9 @@
 #ifndef KBDYSCH_INTERNAL_DEFS_H
 #define KBDYSCH_INTERNAL_DEFS_H
 
+#include "kbdysch/base/hashing.h"
 #include "kbdysch/kbdysch.h"
 #include "kbdysch/block.h"
-#include "kbdysch/hashing.h"
 
 #include <setjmp.h>
 

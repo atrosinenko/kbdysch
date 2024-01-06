@@ -14,6 +14,7 @@ endif()
 
 add_compile_options(-fPIC)
 link_libraries(-Wl,--export-dynamic)
+add_subdirectory(base)
 add_subdirectory(dummy-lkl)
 add_subdirectory(common)
 add_subdirectory(userspace)

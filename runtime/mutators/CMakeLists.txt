@@ -6,9 +6,9 @@ add_library(afl-generic-mutator SHARED
   journal.cpp
   mutations.cpp
   variables.cpp
-  ../common/hashing.c
   ../common/options.c
 )
+target_link_libraries(afl-generic-mutator base)
 
 add_library(mutator-injector SHARED mutator-injector.c)
 target_link_libraries(mutator-injector afl-generic-mutator)
