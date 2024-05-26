@@ -48,7 +48,7 @@ static void btrfs_invoke_defrag(
     int res = ioctl.invoke_unchecked(BTRFS_IOC_DEFRAG_RANGE, &args);
     if (res < 0) {
       TRACE(state, "Error: %s", LKL_STRERROR(res));
-      CHECK_THAT(res == -EPERM || res == -ENOTSUP || res == -EINVAL);
+      CHECK_THAT(res == -EPERM || res == -ENOTSUP || res == -EINVAL || res == -ENOSPC);
     }
     INVOKE_SYSCALL(state, close, fd);
   }
