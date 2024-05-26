@@ -12,6 +12,10 @@
 # Dependencies: system libraries (only those expected to unconditionally exist
 #               on any supported host system).
 
+# `base` library should be usable by non-instrumented code, so let's disable
+# instrumentation unconditionally for this library target.
+ConfigureNonInstrumentedDirectory()
+
 add_library(base STATIC
   diagnostics.c
   hashing.c
