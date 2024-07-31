@@ -62,11 +62,14 @@ static void clear_unused_fields(struct bpf_insn insns[], size_t length) {
     }
     case BPF_LD:
       insns[i].off = 0;
+      break;
     case BPF_ST:
       insns[i].src_reg = 0;
+      break;
     case BPF_LDX:
     case BPF_STX:
       insns[i].imm = 0;
+      break;
     default:
       break;
     }
