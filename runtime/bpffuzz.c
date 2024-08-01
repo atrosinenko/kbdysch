@@ -73,6 +73,52 @@ static void clear_unused_fields(struct bpf_insn insns[], size_t length) {
     default:
       break;
     }
+
+    // Several instructions can be fixed up further
+    switch (insns[i].code) {
+    case 0x84: // dst = -dst (32-bit)
+    case 0x87: // dst = -dst (64-bit)
+      insns[i].src_reg = 0;
+      insns[i].off = 0;
+      insns[i].imm = 0;
+      break;
+    case 0xd4: // convert dst to little-endian
+    case 0xdc: // convert dst to big-endian
+      insns[i].src_reg = 0;
+      insns[i].off = 0;
+
+      // Not zero, imm should be 16, 32 or 64 - normalize it so that the
+      // permitted values are kept as-is (and higher values are more probable -
+      // but this is questionable).
+      if (insns[i].imm & 64)
+        insns[i].imm = 64;
+      else if (insns[i].imm & 32)
+        insns[i].imm = 32;
+      else
+        insns[i].imm = 16;
+
+      break;
+    case 0x18: // dst = imm
+      insns[i].off = 0;
+      insns[i].src_reg = 0;
+      break;
+    case 0x05: // PC += off
+      insns[i].src_reg = 0;
+      insns[i].dst_reg = 0;
+      insns[i].imm = 0;
+      break;
+    case 0x85: // call imm
+      insns[i].src_reg = 0;
+      insns[i].dst_reg = 0;
+      insns[i].off = 0;
+      break;
+    case 0x95: // exit
+      insns[i].src_reg = 0;
+      insns[i].dst_reg = 0;
+      insns[i].off = 0;
+      insns[i].imm = 0;
+      break;
+    }
   }
 }
 
