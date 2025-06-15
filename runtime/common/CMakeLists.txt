@@ -28,8 +28,4 @@ endif()
 add_executable(kbdysch-hash kbdysch-hash.c)
 target_link_libraries(kbdysch-hash base)
 
-if (FAKE_TIME)
-  add_library(fake_time OBJECT fake_time.c)
-endif()
-
 target_link_libraries(common_lib -lrt)

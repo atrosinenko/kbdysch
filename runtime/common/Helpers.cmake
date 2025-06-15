@@ -17,10 +17,7 @@ function(RegisterInvoker name)
 endfunction()
 
 function(PostprocessHarness name)
-  if (FAKE_TIME)
-    target_sources(${name} PUBLIC $<TARGET_OBJECTS:fake_time>)
-    target_link_libraries(${name} -ldl)
-  endif()
+  UseFakeTime(name)
 endfunction()
 
 function(FindSourceByBasename out basename)

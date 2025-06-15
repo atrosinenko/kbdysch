@@ -1,5 +1,4 @@
 option(USE_INVOKERS     "Build fuzzers that require invokers to be generated first" ON)
-option(FAKE_TIME        "Report fake time values to Pth, LKL, etc. to increase the stability" ON)
 option(USE_COMPACT_ENCODING "Read more compact descriptions when generating strings and buffer contents" ON)
 
 include(common/Profile.cmake)
@@ -16,6 +15,7 @@ add_compile_options(-fPIC)
 link_libraries(-Wl,--export-dynamic)
 add_subdirectory(base)
 add_subdirectory(extdeps)
+add_subdirectory(fake_time)
 add_subdirectory(dummy-lkl)
 add_subdirectory(common)
 add_subdirectory(userspace)
