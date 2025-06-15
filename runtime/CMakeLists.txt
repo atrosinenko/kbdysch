@@ -19,6 +19,7 @@ add_subdirectory(fake_time)
 add_subdirectory(dummy-lkl)
 add_subdirectory(common)
 add_subdirectory(userspace)
+add_subdirectory(utils)
 add_subdirectory(mutators)
 
 RegisterHarness(testfuzz)

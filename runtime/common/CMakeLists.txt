@@ -25,7 +25,4 @@ if (LKL_INHIBIT_LINK_TIME_ASSERTIONS)
   target_compile_definitions(common_lib PRIVATE LKL_INHIBIT_LINK_TIME_ASSERTIONS)
 endif()
 
-add_executable(kbdysch-hash kbdysch-hash.c)
-target_link_libraries(kbdysch-hash base)
-
 target_link_libraries(common_lib -lrt)

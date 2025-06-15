@@ -10,9 +10,7 @@ function(RegisterInvoker name)
     target_compile_options(invoker_${name} PRIVATE
       -Wno-incompatible-pointer-types)
 
-    add_executable(debug-${name} utils/invoker-debugger.c)
-    # TODO Fix circular dependencies between userspace_lib and common_lib
-    target_link_libraries(debug-${name} common_lib userspace_lib invoker_${name})
+    AddInvokerDebugger(${name})
   endif()
 endfunction()
 
