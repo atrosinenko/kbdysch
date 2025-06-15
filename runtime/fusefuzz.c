@@ -1,4 +1,5 @@
 #include "kbdysch/base/options.h"
+#include "kbdysch/extdeps/pth.h"
 #include "kbdysch/input.h"
 #include "kbdysch/kbdysch.h"
 #include "kbdysch/invoker-utils.h"
@@ -210,7 +211,7 @@ int main(int argc, const char *argv[]) {
 
   if (setjmp(*res_get_stopper_env(state)) == 0) {
     process_fuse_request(state);
-    spawn_thread(state, fuse_thread_fn, state);
+    spawn_thread(is_native_invoker(state), fuse_thread_fn, state);
     pth_yield(NULL);
 
     for (int block_index = 0; block_index < MAX_OPS; ++block_index) {

@@ -1,6 +1,7 @@
 #include "kbdysch/kbdysch.h"
 
 #include "kbdysch/base/options.h"
+#include "kbdysch/extdeps/pth.h"
 #include "kbdysch/internal-defs.h"
 
 #include <assert.h>
@@ -10,50 +11,15 @@
 #include <fcntl.h>
 #include <time.h>
 #include <signal.h>
-#include <pth.h>
-#include <pthread.h>
 
-static void start_lowest_prio_exiter(void);
-CONSTRUCTOR(constr)
-{
-  pth_init();
+CONSTRUCTOR(constr) {
+  init_extdep_pth();
   compiler_initialize();
-  start_lowest_prio_exiter();
 }
 
 static void default_stopper_func(struct fuzzer_state *state)
 {
   longjmp(state->stopper, 1);
-}
-
-static void *exiter_thread_fn(void *arg)
-{
-  pth_nap(pth_time(500, 0));
-
-  fprintf(stderr, "Timeout!\n");
-  _exit(0);
-  return NULL;
-}
-
-static void start_lowest_prio_exiter(void) {
-  pth_attr_t attr = pth_attr_new();
-  pth_attr_init(attr);
-  CHECK_THAT(pth_attr_set(attr, PTH_ATTR_PRIO, PTH_PRIO_MIN));
-  pth_spawn(attr, exiter_thread_fn, NULL);
-}
-
-void spawn_thread(struct fuzzer_state *state, void *(*thread_fn)(void *),
-                  void *arg) {
-  if (is_native_invoker(state)) {
-    // For now, just use native Pthreads when executing on native kernel
-    pthread_t thread;
-    pthread_create(&thread, NULL, thread_fn, state);
-  } else {
-    pth_attr_t attr = pth_attr_new();
-    pth_attr_init(attr);
-    CHECK_THAT(pth_attr_set(attr, PTH_ATTR_STACK_SIZE, 1024 * 1024));
-    pth_spawn(attr, thread_fn, arg);
-  }
 }
 
 void *alloc_target_pages(struct fuzzer_state *state, size_t size, int prot) {

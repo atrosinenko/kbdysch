@@ -40,8 +40,6 @@ void kernel_dump_file_names(struct fuzzer_state *state);
 void kernel_mk_char_devices(struct fuzzer_state *state);
 void dump_to_file(const char *dump_file_name, const void *data, size_t size);
 void start_forksrv(void);
-void spawn_thread(struct fuzzer_state *state, void *(*thread_fn)(void *),
-                  void *arg);
 void *map_host_huge_pages_if_possible(struct fuzzer_state *state, const char *desc, int fd, size_t size);
 void *alloc_target_pages(struct fuzzer_state *state, size_t size, int prot);
 

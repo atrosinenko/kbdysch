@@ -12,7 +12,10 @@ set(COMMON_LIB_SOURCES
 )
 
 add_library(common_lib STATIC ${COMMON_LIB_SOURCES})
-target_link_libraries(common_lib base)
+target_link_libraries(common_lib
+  base
+  extdep_pth
+)
 if (USE_LKL)
     target_compile_definitions(common_lib PUBLIC -DUSE_LKL)
     target_link_libraries(common_lib lkl)
@@ -30,7 +33,7 @@ if (FAKE_TIME)
   add_library(fake_time OBJECT fake_time.c)
 endif()
 
-target_link_libraries(common_lib -lpth -lrt -pthread)
+target_link_libraries(common_lib -lrt)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(PCAP libpcap)
