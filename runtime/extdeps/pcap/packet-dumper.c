@@ -1,4 +1,4 @@
-#include "kbdysch/packet-dumper.h"
+#include "kbdysch/extdeps/pcap.h"
 #include "kbdysch/logging.h"
 
 #include <arpa/inet.h>

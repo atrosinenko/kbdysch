@@ -1,5 +1,5 @@
-#ifndef KBDYSCH_PACKET_DUMPER_H
-#define KBDYSCH_PACKET_DUMPER_H
+#ifndef KBDYSCH_EXTDEPS_PCAP_H
+#define KBDYSCH_EXTDEPS_PCAP_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -21,4 +21,4 @@ void packet_dumper_close(packet_dumper_t *dumper);
 }
 #endif
 
-#endif // KBDYSCH_PACKET_DUMPER_H
+#endif // KBDYSCH_EXTDEPS_PCAP_H

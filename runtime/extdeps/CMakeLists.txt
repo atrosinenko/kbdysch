@@ -6,4 +6,5 @@
 # These libraries should be usable by non-instrumented code.
 ConfigureNonInstrumentedDirectory()
 
+add_subdirectory(pcap)
 add_subdirectory(pth)
